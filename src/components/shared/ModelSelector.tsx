@@ -10,6 +10,13 @@ interface ModelSelectorProps {
 
 const RECOMMENDED_MODELS = ["gpt-4o", "claude-3-7-sonnet-latest", "claude-3-5-sonnet-latest", "claude-3-5-haiku-latest", "claude-3-7-sonnet-thinking-high", "o3-mini-high"]
 
+// Debug log to check available models
+console.log("===== MODEL SELECTOR DEBUGGING =====")
+console.log("Available models in ModelSelector:", models.length)
+console.log("Google models in ModelSelector:", models.filter(m => m.provider === "google").map(m => m.id))
+console.log("Recommended models:", RECOMMENDED_MODELS)
+console.log("===== END MODEL SELECTOR DEBUGGING =====")
+
 export const ModelSelector: React.FC<ModelSelectorProps> = ({
   currentModel,
   setModel
@@ -17,6 +24,16 @@ export const ModelSelector: React.FC<ModelSelectorProps> = ({
   const { showToast } = useToast()
   const [isOllamaAvailable, setIsOllamaAvailable] = useState(false)
   const [localModels, setLocalModels] = useState<any[]>([])
+
+  // Debug log inside component
+  useEffect(() => {
+    console.log("ModelSelector rendered with models:", {
+      totalModels: models.length,
+      googleModels: models.filter(m => m.provider === "google").length,
+      googleModelIds: models.filter(m => m.provider === "google").map(m => m.id),
+      currentModel
+    })
+  }, [currentModel])
 
   // Check Ollama availability and get local models
   useEffect(() => {
@@ -70,8 +87,22 @@ export const ModelSelector: React.FC<ModelSelectorProps> = ({
     }
   }
 
-  // Filter out vision models that are not recommended
-  const nonVisionModels = models.filter(model => !model.isVisionModel || RECOMMENDED_MODELS.includes(model.id) || model.id === "o1")
+  // Filter out vision models that are not recommended, but include Google and xAI models regardless
+  const nonVisionModels = models.filter(model => 
+    !model.isVisionModel || 
+    RECOMMENDED_MODELS.includes(model.id) || 
+    model.id === "o1" ||
+    model.provider === "google" || // Include all Google models regardless of vision flag
+    model.provider === "xai"     // Include all xAI/Grok models regardless of vision flag
+  )
+
+  // Debug what's actually being used in render
+  console.log("ModelSelector rendering with:", {
+    recommendedModelsForDisplay: nonVisionModels.filter(model => RECOMMENDED_MODELS.includes(model.id)).map(m => m.id),
+    otherModelsForDisplay: nonVisionModels.filter(model => !RECOMMENDED_MODELS.includes(model.id)).map(m => m.id),
+    googleModelsInDisplay: nonVisionModels.filter(m => m.provider === "google").map(m => ({id: m.id, isVision: m.isVisionModel})),
+    xaiModelsInDisplay: nonVisionModels.filter(m => m.provider === "xai").map(m => ({id: m.id, isVision: m.isVisionModel}))
+  })
 
   return (
     <div className="mb-3 px-2 space-y-1">
@@ -91,6 +122,9 @@ export const ModelSelector: React.FC<ModelSelectorProps> = ({
                     {`${model.provider === 'openai' ? 'OpenAI' : 
                        model.provider === 'anthropic' ? 'Anthropic' :
                        model.provider === 'google' ? 'Google' :
+                       model.provider === 'xai' ? 'xAI' :
+                       model.provider === 'meta' ? 'Meta' :
+                       model.provider === 'alibaba' ? 'Alibaba' :
                        'DeepSeek'}: ${model.provider === 'deepseek' ? model.name.replace('DeepSeek ', '') : model.name}`}
                   </option>
                 ))}
@@ -103,6 +137,9 @@ export const ModelSelector: React.FC<ModelSelectorProps> = ({
                     {`${model.provider === 'openai' ? 'OpenAI' : 
                        model.provider === 'anthropic' ? 'Anthropic' :
                        model.provider === 'google' ? 'Google' :
+                       model.provider === 'xai' ? 'xAI' :
+                       model.provider === 'meta' ? 'Meta' :
+                       model.provider === 'alibaba' ? 'Alibaba' :
                        'DeepSeek'}: ${model.provider === 'deepseek' ? model.name.replace('DeepSeek ', '') : model.name}`}
                   </option>
                 ))}

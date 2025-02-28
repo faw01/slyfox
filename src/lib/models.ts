@@ -27,7 +27,7 @@ export interface AIModel {
   id: string
   name: string
   description: string
-  provider: "openai" | "anthropic" | "google" | "deepseek"
+  provider: "openai" | "anthropic" | "google" | "deepseek" | "xai" | "meta" | "alibaba"
   modelId: string
   maxTokens: number
   reasoning_effort?: "low" | "medium" | "high"
@@ -38,8 +38,18 @@ export interface AIModel {
   }
 }
 
-// Vision-capable models
-const visionModelsList: AIModel[] = [
+// Single source of truth for all models
+export const allModels: AIModel[] = [
+  // Claude Models
+  {
+    id: "claude-3-7-sonnet-latest",
+    name: "Claude 3.7 Sonnet",
+    description: "Excellent | 2150 CF Elo.",
+    provider: "anthropic",
+    modelId: "claude-3-7-sonnet-20250219",
+    maxTokens: 21_333,
+    isVisionModel: false
+  },
   {
     id: "claude-3-7-sonnet-vision",
     name: "Claude 3.7 Sonnet",
@@ -48,6 +58,19 @@ const visionModelsList: AIModel[] = [
     modelId: "claude-3-7-sonnet-20250219",
     maxTokens: 21_333,
     isVisionModel: true
+  },
+  {
+    id: "claude-3-7-sonnet-thinking-high",
+    name: "Claude 3.7 Sonnet Thinking (high)",
+    description: "Outstanding | 2300 CF Elo.",
+    provider: "anthropic",
+    modelId: "claude-3-7-sonnet-20250219",
+    maxTokens: 21_333,
+    thinking: {
+      type: "enabled",
+      budget_tokens: 4096
+    },
+    isVisionModel: false
   },
   {
     id: "claude-3-7-sonnet-vision-thinking-high",
@@ -63,6 +86,19 @@ const visionModelsList: AIModel[] = [
     }
   },
   {
+    id: "claude-3-7-sonnet-thinking-medium",
+    name: "Claude 3.7 Sonnet Thinking (medium)",
+    description: "Superior | 2250 CF Elo.",
+    provider: "anthropic",
+    modelId: "claude-3-7-sonnet-20250219",
+    maxTokens: 21_333,
+    thinking: {
+      type: "enabled",
+      budget_tokens: 2048
+    },
+    isVisionModel: false
+  },
+  {
     id: "claude-3-7-sonnet-vision-thinking-medium",
     name: "Claude 3.7 Sonnet Thinking (medium)",
     description: "Superior Vision | 2250 CF Elo.",
@@ -74,6 +110,19 @@ const visionModelsList: AIModel[] = [
       type: "enabled",
       budget_tokens: 2048
     }
+  },
+  {
+    id: "claude-3-7-sonnet-thinking-low",
+    name: "Claude 3.7 Sonnet Thinking (low)",
+    description: "Great | 2200 CF Elo.",
+    provider: "anthropic",
+    modelId: "claude-3-7-sonnet-20250219",
+    maxTokens: 21_333,
+    thinking: {
+      type: "enabled",
+      budget_tokens: 1024
+    },
+    isVisionModel: false
   },
   {
     id: "claude-3-7-sonnet-vision-thinking-low",
@@ -89,6 +138,35 @@ const visionModelsList: AIModel[] = [
     }
   },
   {
+    id: "claude-3-5-sonnet-latest",
+    name: "Claude 3.5 Sonnet v2",
+    description: "Very Good | 2100 CF Elo.",
+    provider: "anthropic",
+    modelId: "claude-3-5-sonnet-20240620",
+    maxTokens: 21_333,
+    isVisionModel: false
+  },
+  {
+    id: "claude-3-5-sonnet-vision",
+    name: "Claude 3.5 Sonnet v2",
+    description: "Smart, but expensive | 717 CF Elo.",
+    provider: "anthropic",
+    modelId: "claude-3-5-sonnet-latest",
+    maxTokens: 4096,
+    isVisionModel: true
+  },
+  {
+    id: "claude-3-5-haiku-latest",
+    name: "Claude 3.5 Haiku",
+    description: "Fast | 1950 CF Elo.",
+    provider: "anthropic",
+    modelId: "claude-3-5-haiku-20240620",
+    maxTokens: 21_333,
+    isVisionModel: false
+  },
+
+  // OpenAI Models
+  {
     id: "gpt-4o",
     name: "GPT-4o",
     description: "Default | 808 CF Elo.",
@@ -96,6 +174,15 @@ const visionModelsList: AIModel[] = [
     modelId: "gpt-4o",
     maxTokens: 4096,
     isVisionModel: true
+  },
+  {
+    id: "gpt-4.5",
+    name: "GPT-4.5",
+    description: "Latest OpenAI | ~2100 CF Elo.",
+    provider: "openai",
+    modelId: "gpt-4.5-preview",
+    maxTokens: 4096,
+    isVisionModel: false
   },
   {
     id: "gpt-4.5-vision",
@@ -116,40 +203,43 @@ const visionModelsList: AIModel[] = [
     isVisionModel: true
   },
   {
-    id: "gemini-2.0-flash",
-    name: "Gemini 2.0 Flash",
-    description: "Latest | ~1000 CF Elo.",
-    provider: "google",
-    modelId: "gemini-2.0-flash",
+    id: "o1-mini",
+    name: "o1-mini",
+    description: "Decent | 1650 CF Elo.",
+    provider: "openai",
+    modelId: "o1-mini",
     maxTokens: 4096,
-    isVisionModel: true
+    isVisionModel: false
   },
   {
-    id: "gemini-2-thinking",
-    name: "Gemini 2.0 Flash Thinking",
-    description: "Not working | ~1400 CF Elo.",
-    provider: "google",
-    modelId: "gemini-2.0-flash-thinking-exp-01-21",
+    id: "o3-mini-low",
+    name: "o3-mini (low)",
+    description: "Quick | 1697 CF Elo.",
+    provider: "openai",
+    modelId: "o3-mini",
     maxTokens: 4096,
-    isVisionModel: true
+    reasoning_effort: "low",
+    isVisionModel: false
   },
   {
-    id: "gemini-2-pro",
-    name: "Gemini 2.0 Pro",
-    description: "Not working | ~1200 CF Elo.",
-    provider: "google",
-    modelId: "gemini-2.0-pro-exp-02-05",
+    id: "o3-mini-medium",
+    name: "o3-mini (medium)",
+    description: "Balanced | 1997 CF Elo.",
+    provider: "openai",
+    modelId: "o3-mini",
     maxTokens: 4096,
-    isVisionModel: true
+    reasoning_effort: "medium",
+    isVisionModel: false
   },
   {
-    id: "gemini-2.0-flash-lite-preview-02-05",
-    name: "Gemini 2.0 Flash Lite Preview",
-    description: "Fast AF | ~1000 CF Elo.",
-    provider: "google",
-    modelId: "gemini-2.0-flash-lite-preview-02-05",
+    id: "o3-mini-high",
+    name: "o3-mini (high)",
+    description: "Best | 2073 CF Elo.",
+    provider: "openai",
+    modelId: "o3-mini",
     maxTokens: 4096,
-    isVisionModel: true
+    reasoning_effort: "high",
+    isVisionModel: false
   },
   {
     id: "gpt-4o-mini",
@@ -160,129 +250,72 @@ const visionModelsList: AIModel[] = [
     maxTokens: 4096,
     isVisionModel: true
   },
+
+  // Google Models
   {
-    id: "claude-3-5-sonnet-latest",
-    name: "Claude 3.5 Sonnet v2",
-    description: "Smart, but expensive | 717 CF Elo.",
-    provider: "anthropic",
-    modelId: "claude-3-5-sonnet-latest",
+    id: "gemini-2.0-flash",
+    name: "Gemini 2.0 Flash",
+    description: "All rounder | 1800 CF Elo.",
+    provider: "google",
+    modelId: "gemini-2.0-flash",
     maxTokens: 4096,
     isVisionModel: true
-  }
-]
+  },
+  {
+    id: "gemini-2-thinking",
+    name: "Gemini 2.0 Flash Thinking",
+    description: "Experimental reasoning | 1900 CF Elo.",
+    provider: "google",
+    modelId: "gemini-2.0-flash-thinking-exp-01-21",
+    maxTokens: 4096,
+    isVisionModel: true
+  },
+  {
+    id: "gemini-2-pro",
+    name: "Gemini 2.0 Pro",
+    description: "big boy | 2000 CF Elo.",
+    provider: "google",
+    modelId: "gemini-2.0-pro-exp-02-05",
+    maxTokens: 4096,
+    isVisionModel: true
+  },
+  {
+    id: "gemini-2.0-flash-lite",
+    name: "Gemini 2.0 Flash Lite",
+    description: "Fast AF but limited | 1650 CF Elo.",
+    provider: "google",
+    modelId: "gemini-2.0-flash-lite-preview-02-05",
+    maxTokens: 4096,
+    isVisionModel: true
+  },
+  {
+    id: "gemini-1.5-flash",
+    name: "Gemini 1.5 Flash",
+    description: "old but gold | 1500 CF Elo.",
+    provider: "google",
+    modelId: "gemini-1.5-flash",
+    maxTokens: 4096,
+    isVisionModel: true
+  },
+  {
+    id: "gemini-1.5-pro",
+    name: "Gemini 1.5 Pro",
+    description: "old but gold | 1600 CF Elo.",
+    provider: "google",
+    modelId: "gemini-1.5-pro",
+    maxTokens: 4096,
+    isVisionModel: true
+  },
 
-// Regular models
-const regularModelsList: AIModel[] = [
-  {
-    id: "claude-3-7-sonnet-latest",
-    name: "Claude 3.7 Sonnet",
-    description: "Excellent | 2150 CF Elo.",
-    provider: "anthropic",
-    modelId: "claude-3-7-sonnet-20250219",
-    maxTokens: 21_333
-  },
-  {
-    id: "claude-3-7-sonnet-thinking-high",
-    name: "Claude 3.7 Sonnet Thinking (high)",
-    description: "Outstanding | 2300 CF Elo.",
-    provider: "anthropic",
-    modelId: "claude-3-7-sonnet-20250219",
-    maxTokens: 21_333,
-    thinking: {
-      type: "enabled",
-      budget_tokens: 4096
-    }
-  },
-  {
-    id: "claude-3-7-sonnet-thinking-medium",
-    name: "Claude 3.7 Sonnet Thinking (medium)",
-    description: "Superior | 2250 CF Elo.",
-    provider: "anthropic",
-    modelId: "claude-3-7-sonnet-20250219",
-    maxTokens: 21_333,
-    thinking: {
-      type: "enabled",
-      budget_tokens: 2048
-    }
-  },
-  {
-    id: "claude-3-7-sonnet-thinking-low",
-    name: "Claude 3.7 Sonnet Thinking (low)",
-    description: "Great | 2200 CF Elo.",
-    provider: "anthropic",
-    modelId: "claude-3-7-sonnet-20250219",
-    maxTokens: 21_333,
-    thinking: {
-      type: "enabled",
-      budget_tokens: 1024
-    }
-  },
-  {
-    id: "claude-3-5-sonnet-latest",
-    name: "Claude 3.5 Sonnet v2",
-    description: "Very Good | 2100 CF Elo.",
-    provider: "anthropic",
-    modelId: "claude-3-5-sonnet-20240620",
-    maxTokens: 21_333
-  },
-  {
-    id: "claude-3-5-haiku-latest",
-    name: "Claude 3.5 Haiku",
-    description: "Fast | 1950 CF Elo.",
-    provider: "anthropic",
-    modelId: "claude-3-5-haiku-20240620",
-    maxTokens: 21_333
-  },
-  {
-    id: "o1-mini",
-    name: "o1-mini",
-    description: "Decent | 1650 CF Elo.",
-    provider: "openai",
-    modelId: "o1-mini",
-    maxTokens: 4096
-  },
-  {
-    id: "o3-mini-low",
-    name: "o3-mini (low)",
-    description: "Quick | 1697 CF Elo.",
-    provider: "openai",
-    modelId: "o3-mini",
-    maxTokens: 4096,
-    reasoning_effort: "low"
-  },
-  {
-    id: "o3-mini-medium",
-    name: "o3-mini (medium)",
-    description: "Balanced | 1997 CF Elo.",
-    provider: "openai",
-    modelId: "o3-mini",
-    maxTokens: 4096,
-    reasoning_effort: "medium"
-  },
-  {
-    id: "o3-mini-high",
-    name: "o3-mini (high)",
-    description: "Best | 2073 CF Elo.",
-    provider: "openai",
-    modelId: "o3-mini",
-    maxTokens: 4096,
-    reasoning_effort: "high"
-  },
-  {
-    id: "gpt-4.5",
-    name: "GPT-4.5",
-    description: "Latest OpenAI | ~2100 CF Elo.",
-    provider: "openai",
-    modelId: "gpt-4.5-preview",
-    maxTokens: 4096
-  },
+  // DeepSeek Models
   {
     id: "deepseek-r1",
     name: "DeepSeek R1",
     description: "Smart, but slow | 2029 CF Elo.",
     provider: "deepseek",
     modelId: "deepseek-r1",
-    maxTokens: 4096
+    maxTokens: 4096,
+    isVisionModel: false
   },
   {
     id: "deepseek-r1-distill-1.5b",
@@ -290,7 +323,8 @@ const regularModelsList: AIModel[] = [
     description: "Tiny | 954 CF Elo.",
     provider: "deepseek",
     modelId: "deepseek-r1-distill-1.5b",
-    maxTokens: 4096
+    maxTokens: 4096,
+    isVisionModel: false
   },
   {
     id: "deepseek-r1-distill-7b",
@@ -298,7 +332,8 @@ const regularModelsList: AIModel[] = [
     description: "Small | 1189 CF Elo.",
     provider: "deepseek",
     modelId: "deepseek-r1-distill-7b",
-    maxTokens: 4096
+    maxTokens: 4096,
+    isVisionModel: false
   },
   {
     id: "deepseek-r1-distill-14b",
@@ -306,7 +341,8 @@ const regularModelsList: AIModel[] = [
     description: "Medium | 1481 CF Elo.",
     provider: "deepseek",
     modelId: "deepseek-r1-distill-14b",
-    maxTokens: 4096
+    maxTokens: 4096,
+    isVisionModel: false
   },
   {
     id: "deepseek-r1-distill-32b",
@@ -314,7 +350,8 @@ const regularModelsList: AIModel[] = [
     description: "Large | 1691 CF Elo.",
     provider: "deepseek",
     modelId: "deepseek-r1-distill-32b",
-    maxTokens: 4096
+    maxTokens: 4096,
+    isVisionModel: false
   },
   {
     id: "deepseek-r1-distill-8b",
@@ -322,7 +359,8 @@ const regularModelsList: AIModel[] = [
     description: "Small+ | 1205 CF Elo.",
     provider: "deepseek",
     modelId: "deepseek-r1-distill-8b",
-    maxTokens: 4096
+    maxTokens: 4096,
+    isVisionModel: false
   },
   {
     id: "deepseek-r1-distill-70b",
@@ -330,18 +368,104 @@ const regularModelsList: AIModel[] = [
     description: "Huge | 1633 CF Elo.",
     provider: "deepseek",
     modelId: "deepseek-r1-distill-70b",
-    maxTokens: 4096
-  }
+    maxTokens: 4096,
+    isVisionModel: false
+  },
+  
+  // Ollama Models
+  {
+    id: "qwen-2.5-3b",
+    name: "Qwen 2.5 3B",
+    description: "Fast | ~1200 CF Elo.",
+    provider: "alibaba",
+    modelId: "qwen:2.5-3b",
+    maxTokens: 4096,
+    isVisionModel: false
+  },
+  {
+    id: "llama-3.3",
+    name: "Llama 3.3",
+    description: "Versatile | ~1600 CF Elo.",
+    provider: "meta",
+    modelId: "llama:3.3",
+    maxTokens: 4096,
+    isVisionModel: false
+  },
+
+  // xAI (Grok) Models
+  {
+    id: "grok-2-1212",
+    name: "Grok 2",
+    description: "Powerful reasoning and general knowledge | xAI",
+    provider: "xai",
+    modelId: "grok-2-1212",
+    maxTokens: 4096,
+    isVisionModel: false
+  },
+  {
+    id: "grok-2-vision-1212",
+    name: "Grok 2 Vision",
+    description: "Vision capabilities with powerful reasoning | xAI",
+    provider: "xai",
+    modelId: "grok-2-vision-1212",
+    maxTokens: 4096,
+    isVisionModel: true
+  },
+
+  // Alibaba (Qwen) Models
+  {
+    id: "qwen-vision",
+    name: "Qwen Vision",
+    description: "Multimodal model with vision capabilities | Alibaba",
+    provider: "alibaba",
+    modelId: "qwen-vision",
+    maxTokens: 4096,
+    isVisionModel: true
+  },
 ]
 
-// Combined models array with both regular and vision models
-export const models: AIModel[] = [...regularModelsList, ...visionModelsList]
+// Export all models as the main models array
+export const models = allModels
 
-// Export vision models for backward compatibility
-export const visionModels = visionModelsList
+// Debug logging for all models
+console.log("===== MODEL DEBUGGING =====")
+console.log("All models count:", allModels.length)
+console.log("All Google models:", allModels.filter(m => m.provider === "google").map(m => m.id))
 
 // Helper function to get vision models
-export const getVisionModels = () => models.filter(model => model.isVisionModel)
+export const getVisionModels = () => {
+  const visionModels = models.filter(model => model.isVisionModel)
+  console.log("Vision models count:", visionModels.length) 
+  console.log("Vision Google models:", visionModels.filter(m => m.provider === "google").map(m => m.id))
+  return visionModels
+}
+
+// Export vision models list for backward compatibility
+export const visionModels = getVisionModels()
+
+// Log model distribution by provider
+console.log("Models by provider:", {
+  google: models.filter(m => m.provider === "google").length,
+  openai: models.filter(m => m.provider === "openai").length,
+  anthropic: models.filter(m => m.provider === "anthropic").length,
+  deepseek: models.filter(m => m.provider === "deepseek").length,
+  xai: models.filter(m => m.provider === "xai").length,
+  meta: models.filter(m => m.provider === "meta").length,
+  alibaba: models.filter(m => m.provider === "alibaba").length
+})
+
+// Enhanced debugging for Google models specifically
+console.log("Google models detail:", models
+  .filter(m => m.provider === "google")
+  .map(m => ({
+    id: m.id,
+    name: m.name,
+    isVisionModel: m.isVisionModel,
+    provider: m.provider
+  }))
+)
+
+console.log("===== END MODEL DEBUGGING =====")
 
 export interface AIResponse {
   content: string
@@ -392,6 +516,9 @@ export class AIModelManager {
   private anthropic: AnthropicClient | null = null
   private google: GoogleGenerativeAI | null = null
   private deepseekApiKey: string | null = null
+  private xaiApiKey: string | null = null
+  private metaApiKey: string | null = null
+  private alibabaApiKey: string | null = null
   private initialized: boolean = false
   private isMainProcess: boolean
   private store: any
@@ -434,6 +561,15 @@ export class AIModelManager {
       }
       if (apiKeys.deepseek) {
         this.deepseekApiKey = apiKeys.deepseek
+      }
+      if (apiKeys.xai) {
+        this.xaiApiKey = apiKeys.xai
+      }
+      if (apiKeys.meta) {
+        this.metaApiKey = apiKeys.meta
+      }
+      if (apiKeys.alibaba) {
+        this.alibabaApiKey = apiKeys.alibaba
       }
     } catch (error) {
       console.error('Failed to initialize AI clients:', error)
@@ -654,6 +790,111 @@ export class AIModelManager {
     }
   }
 
+  // Add implementation for xAI API
+  private async callXaiApi(model: AIModel, messages: Array<{ role: string; content: any }>, options: { signal?: AbortSignal } = {}) {
+    if (!this.xaiApiKey) {
+      throw new Error("xAI API key not initialized")
+    }
+
+    const response = await axios.post(
+      'https://api.groq.com/openai/v1/chat/completions',
+      {
+        model: model.modelId,
+        messages: messages.map(m => ({
+          role: m.role,
+          content: typeof m.content === 'string' ? m.content : JSON.stringify(m.content)
+        })),
+        max_tokens: model.maxTokens,
+      },
+      {
+        headers: {
+          'Authorization': `Bearer ${this.xaiApiKey}`,
+          'Content-Type': 'application/json',
+        },
+        signal: options.signal
+      }
+    )
+
+    if (!response.data.choices?.[0]?.message?.content) {
+      throw new Error("Empty response from xAI API")
+    }
+
+    return {
+      content: response.data.choices[0].message.content,
+      _request_id: response.data.id
+    }
+  }
+
+  // Add implementation for Meta API
+  private async callMetaApi(model: AIModel, messages: Array<{ role: string; content: any }>, options: { signal?: AbortSignal } = {}) {
+    if (!this.metaApiKey) {
+      throw new Error("Meta API key not initialized")
+    }
+
+    const response = await axios.post(
+      'https://api.meta.com/v1/chat/completions',
+      {
+        model: model.modelId,
+        messages: messages.map(m => ({
+          role: m.role,
+          content: typeof m.content === 'string' ? m.content : JSON.stringify(m.content)
+        })),
+        max_tokens: model.maxTokens,
+      },
+      {
+        headers: {
+          'Authorization': `Bearer ${this.metaApiKey}`,
+          'Content-Type': 'application/json',
+        },
+        signal: options.signal
+      }
+    )
+
+    if (!response.data.choices?.[0]?.message?.content) {
+      throw new Error("Empty response from Meta API")
+    }
+
+    return {
+      content: response.data.choices[0].message.content,
+      _request_id: response.data.id
+    }
+  }
+
+  // Add implementation for Alibaba API
+  private async callAlibabaApi(model: AIModel, messages: Array<{ role: string; content: any }>, options: { signal?: AbortSignal } = {}) {
+    if (!this.alibabaApiKey) {
+      throw new Error("Alibaba API key not initialized")
+    }
+
+    const response = await axios.post(
+      'https://api.alibaba.com/v1/chat/completions',
+      {
+        model: model.modelId,
+        messages: messages.map(m => ({
+          role: m.role,
+          content: typeof m.content === 'string' ? m.content : JSON.stringify(m.content)
+        })),
+        max_tokens: model.maxTokens,
+      },
+      {
+        headers: {
+          'Authorization': `Bearer ${this.alibabaApiKey}`,
+          'Content-Type': 'application/json',
+        },
+        signal: options.signal
+      }
+    )
+
+    if (!response.data.choices?.[0]?.message?.content) {
+      throw new Error("Empty response from Alibaba API")
+    }
+
+    return {
+      content: response.data.choices[0].message.content,
+      _request_id: response.data.id
+    }
+  }
+
   /**
    * Generate a completion using the appropriate AI model
    * @param modelId ID of the model to use
@@ -792,6 +1033,18 @@ export class AIModelManager {
 
       case "deepseek": {
         return this.callDeepseekApi(model, messages, options)
+      }
+
+      case "xai": {
+        return this.callXaiApi(model, messages, options)
+      }
+
+      case "meta": {
+        return this.callMetaApi(model, messages, options)
+      }
+
+      case "alibaba": {
+        return this.callAlibabaApi(model, messages, options)
       }
 
       default:
