@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from "react"
-import { models, visionModels } from "../../lib/models"
+import { models } from "../../lib/models"
 import { useToast } from "../../contexts/toast"
 import { checkOllamaHealth, getLocalModels } from "../../lib/ollama-client"
 
@@ -8,7 +8,7 @@ interface ModelSelectorProps {
   setModel: (model: string) => void
 }
 
-const RECOMMENDED_MODELS = ["o3-mini-high", "o1-mini", "claude-3-5-sonnet-latest", "gpt-4o"]
+const RECOMMENDED_MODELS = ["gpt-4o", "claude-3-7-sonnet-latest", "claude-3-5-sonnet-latest", "claude-3-5-haiku-latest", "claude-3-7-sonnet-thinking-high", "o3-mini-high"]
 
 export const ModelSelector: React.FC<ModelSelectorProps> = ({
   currentModel,
@@ -39,7 +39,7 @@ export const ModelSelector: React.FC<ModelSelectorProps> = ({
       window.electronAPI.setModel("gpt-4o").catch(console.error)
       
       // Find the model details and show the toast
-      const selectedModel = [...models, ...visionModels].find(m => m.id === "gpt-4o")
+      const selectedModel = models.find(m => m.id === "gpt-4o")
       if (selectedModel) {
         showToast(
           "Model Selected",
@@ -59,8 +59,8 @@ export const ModelSelector: React.FC<ModelSelectorProps> = ({
     // Check if it's a local model
     const isLocalModel = localModels.some(m => m.name === newModel)
     
-    // Check both regular and vision models
-    const selectedModel = [...models, ...visionModels].find(m => m.id === newModel)
+    // Find the selected model
+    const selectedModel = models.find(m => m.id === newModel)
     if (selectedModel) {
       showToast(
         "Model Selected",
@@ -70,8 +70,8 @@ export const ModelSelector: React.FC<ModelSelectorProps> = ({
     }
   }
 
-  // Show all available models
-  const allModels = [...models, ...visionModels]
+  // Filter out vision models that are not recommended
+  const nonVisionModels = models.filter(model => !model.isVisionModel || RECOMMENDED_MODELS.includes(model.id) || model.id === "o1")
 
   return (
     <div className="mb-3 px-2 space-y-1">
@@ -81,10 +81,10 @@ export const ModelSelector: React.FC<ModelSelectorProps> = ({
           <select
             value={currentModel}
             onChange={handleModelChange}
-            className="bg-white/10 rounded px-2 py-1 text-[11px] leading-none outline-none border border-white/10 focus:border-white/20 min-w-[120px]"
+            className="bg-white/10 rounded px-2 py-1 text-[11px] leading-none outline-none border border-white/10 focus:border-white/20 min-w-[240px] w-full truncate"
           >
             <optgroup label="Recommended Models">
-              {allModels
+              {nonVisionModels
                 .filter(model => RECOMMENDED_MODELS.includes(model.id))
                 .map((model) => (
                   <option key={model.id} value={model.id} title={model.description}>
@@ -96,7 +96,7 @@ export const ModelSelector: React.FC<ModelSelectorProps> = ({
                 ))}
             </optgroup>
             <optgroup label="Other Models">
-              {allModels
+              {nonVisionModels
                 .filter(model => !RECOMMENDED_MODELS.includes(model.id))
                 .map((model) => (
                   <option key={model.id} value={model.id} title={model.description}>

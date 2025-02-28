@@ -51,6 +51,7 @@ export interface ElectronAPI {
   onOutOfCredits: (callback: () => void) => () => void
   openSettingsPortal: () => Promise<void>
   setModel: (model: string) => Promise<{ success: boolean; error?: string }>
+  getPlatform: () => string
 
   // Theme methods
   getTheme: () => Promise<'light' | 'dark'>
@@ -77,6 +78,10 @@ export interface ElectronAPI {
   // Content Protection methods
   getContentProtection: () => Promise<boolean>
   setContentProtection: (enabled: boolean) => Promise<{ success: boolean; error?: string }>
+  
+  // Taskbar Icon methods
+  getTaskbarIcon: () => Promise<boolean>
+  setTaskbarIcon: (hidden: boolean) => Promise<{ success: boolean; error?: string }>
 }
 
 declare global {

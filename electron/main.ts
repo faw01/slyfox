@@ -153,20 +153,18 @@ function initializeHelpers() {
   } as IShortcutsHelperDeps)
 }
 
-// Auth callback handler
-
-// Register the interview-coder protocol
+// Register the slyfox protocol
 if (process.platform === "darwin") {
-  app.setAsDefaultProtocolClient("interview-coder")
+  app.setAsDefaultProtocolClient("slyfox")
 } else {
-  app.setAsDefaultProtocolClient("interview-coder", process.execPath, [
+  app.setAsDefaultProtocolClient("slyfox", process.execPath, [
     path.resolve(process.argv[1] || "")
   ])
 }
 
 // Handle the protocol. In this case, we choose to show an Error Box.
 if (process.defaultApp && process.argv.length >= 2) {
-  app.setAsDefaultProtocolClient("interview-coder", process.execPath, [
+  app.setAsDefaultProtocolClient("slyfox", process.execPath, [
     path.resolve(process.argv[1])
   ])
 }
@@ -265,6 +263,22 @@ async function createWindow(): Promise<void> {
   const savedOpacity = store.get('opacity') ?? 1.0
   state.mainWindow.setOpacity(savedOpacity)
 
+  // Force taskbar icon to be hidden at startup regardless of stored setting
+  store.set('taskbarIconHidden', true)
+  console.log('Forcing taskbar icon to be hidden at startup')
+
+  // Apply taskbar icon state based on platform
+  if (process.platform === 'darwin') {
+    // On macOS, use the dock API
+    console.log('Using macOS dock API for taskbar icon')
+    console.log('Initially hiding dock icon')
+    app.dock.hide()
+  } else {
+    // On Windows/Linux, use setSkipTaskbar
+    console.log('Using setSkipTaskbar for taskbar icon')
+    state.mainWindow.setSkipTaskbar(true)
+  }
+
   // Add more detailed logging for window events
   state.mainWindow.webContents.on("did-finish-load", () => {
     console.log("Window finished loading")
@@ -322,24 +336,22 @@ async function createWindow(): Promise<void> {
 
   // Enhanced screen capture resistance
   state.mainWindow.setContentProtection(true)
-  state.mainWindow.setHiddenInMissionControl(true)
+  
+  // Additional screen capture resistance settings
+  if (process.platform === "darwin") {
+    // Prevent window from being captured in screenshots
+    state.mainWindow.setHiddenInMissionControl(true)
+    state.mainWindow.setWindowButtonVisibility(false)
+    state.mainWindow.setBackgroundColor("#00000000")
+  }
+  
   state.mainWindow.setVisibleOnAllWorkspaces(true, {
     visibleOnFullScreen: true
   })
   state.mainWindow.setAlwaysOnTop(true, "floating", 1)
-
-  // Additional screen capture resistance settings
-  if (process.platform === "darwin") {
-    // Prevent window from being captured in screenshots
-    state.mainWindow.setWindowButtonVisibility(false)
-    state.mainWindow.setBackgroundColor("#00000000")
-
-    // Prevent window from being included in window switcher
-    state.mainWindow.setSkipTaskbar(true)
-
-    // Disable window shadow
-    state.mainWindow.setHasShadow(false)
-  }
+  
+  // Force content protection to be enabled at startup regardless of stored setting
+  store.set('contentProtection', true)
 
   // Prevent the window from being captured by screen recording
   state.mainWindow.webContents.setBackgroundThrottling(false)
@@ -410,7 +422,8 @@ function showMainWindow(): void {
     state.mainWindow.setVisibleOnAllWorkspaces(true, {
       visibleOnFullScreen: true
     })
-    state.mainWindow.setContentProtection(true)
+    const savedContentProtection = store.get('contentProtection') ?? true
+    state.mainWindow.setContentProtection(savedContentProtection)
     state.mainWindow.setOpacity(0)
     state.mainWindow.showInactive()
     const savedOpacity = store.get('opacity') ?? 1.0
@@ -541,7 +554,7 @@ async function initializeApp() {
 app.on("open-url", (event, url) => {
   console.log("open-url event received:", url)
   event.preventDefault()
-  if (url.startsWith("interview-coder://")) {
+  if (url.startsWith("slyfox://")) {
     handleAuthCallback(url, state.mainWindow)
   }
 })
@@ -549,7 +562,7 @@ app.on("open-url", (event, url) => {
 // Handle the auth callback in production (Windows/Linux)
 app.on("second-instance", (event, commandLine) => {
   console.log("second-instance event received:", commandLine)
-  const url = commandLine.find((arg) => arg.startsWith("interview-coder://"))
+  const url = commandLine.find((arg) => arg.startsWith("slyfox://"))
   if (url) {
     handleAuthCallback(url, state.mainWindow)
   }

@@ -1,3 +1,4 @@
+import "./App.css"
 import SubscribedApp from "./_pages/SubscribedApp"
 import { UpdateNotification } from "./components/UpdateNotification"
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query"

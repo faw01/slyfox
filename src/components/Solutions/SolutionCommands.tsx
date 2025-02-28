@@ -4,6 +4,7 @@ import { Screenshot } from "../../types/screenshots"
 import { LanguageSelector } from "../shared/LanguageSelector"
 import { ModelSelector } from "../shared/ModelSelector"
 import { Settings } from "../shared/Settings"
+import { COMMAND_KEY } from '../../utils/platform'
 
 export interface SolutionCommandsProps {
   onTooltipVisibilityChange: (visible: boolean, height: number) => void
@@ -79,7 +80,7 @@ const SolutionCommands: React.FC<SolutionCommandsProps> = ({
             <span className="text-[11px] leading-none cursor-default">Show/Hide</span>
             <div className="flex gap-1">
               <button className="bg-white/10 rounded-md px-1.5 py-1 text-[11px] leading-none text-white/70 cursor-default">
-                ⌘
+                {COMMAND_KEY}
               </button>
               <button className="bg-white/10 rounded-md px-1.5 py-1 text-[11px] leading-none text-white/70 cursor-default">
                 B
@@ -112,7 +113,7 @@ const SolutionCommands: React.FC<SolutionCommandsProps> = ({
                 </span>
                 <div className="flex gap-1">
                   <button className="bg-white/10 rounded-md px-1.5 py-1 text-[11px] leading-none text-white/70 cursor-default">
-                    ⌘
+                    {COMMAND_KEY}
                   </button>
                   <button className="bg-white/10 rounded-md px-1.5 py-1 text-[11px] leading-none text-white/70 cursor-default">
                     H
@@ -151,7 +152,7 @@ const SolutionCommands: React.FC<SolutionCommandsProps> = ({
                   <span className="text-[11px] leading-none cursor-default">Debug</span>
                   <div className="flex gap-1">
                     <button className="bg-white/10 rounded-md px-1.5 py-1 text-[11px] leading-none text-white/70 cursor-default">
-                      ⌘
+                      {COMMAND_KEY}
                     </button>
                     <button className="bg-white/10 rounded-md px-1.5 py-1 text-[11px] leading-none text-white/70 cursor-default">
                       ↵
@@ -181,7 +182,7 @@ const SolutionCommands: React.FC<SolutionCommandsProps> = ({
             <span className="text-[11px] leading-none cursor-default">Start Over</span>
             <div className="flex gap-1">
               <button className="bg-white/10 rounded-md px-1.5 py-1 text-[11px] leading-none text-white/70 cursor-default">
-                ⌘
+                {COMMAND_KEY}
               </button>
               <button className="bg-white/10 rounded-md px-1.5 py-1 text-[11px] leading-none text-white/70 cursor-default">
                 R
@@ -260,10 +261,10 @@ const SolutionCommands: React.FC<SolutionCommandsProps> = ({
                         <div className="flex items-center justify-between">
                           <span className="truncate cursor-default">Toggle Window</span>
                           <div className="flex gap-1 flex-shrink-0">
-                            <span className="bg-white/20 px-1.5 py-0.5 rounded text-[10px] leading-none cursor-default">
-                              ⌘
+                            <span className="bg-white/10 rounded-md px-1.5 py-1 text-[11px] leading-none text-white/70 cursor-default">
+                              {COMMAND_KEY}
                             </span>
-                            <span className="bg-white/20 px-1.5 py-0.5 rounded text-[10px] leading-none cursor-default">
+                            <span className="bg-white/10 rounded-md px-1.5 py-1 text-[11px] leading-none text-white/70 cursor-default">
                               B
                             </span>
                           </div>
@@ -306,10 +307,10 @@ const SolutionCommands: React.FC<SolutionCommandsProps> = ({
                             <div className="flex items-center justify-between">
                               <span className="truncate cursor-default">Take Screenshot</span>
                               <div className="flex gap-1 flex-shrink-0">
-                                <span className="bg-white/20 px-1.5 py-0.5 rounded text-[10px] leading-none cursor-default">
-                                  ⌘
+                                <span className="bg-white/10 rounded-md px-1.5 py-1 text-[11px] leading-none text-white/70 cursor-default">
+                                  {COMMAND_KEY}
                                 </span>
-                                <span className="bg-white/20 px-1.5 py-0.5 rounded text-[10px] leading-none cursor-default">
+                                <span className="bg-white/10 rounded-md px-1.5 py-1 text-[11px] leading-none text-white/70 cursor-default">
                                   H
                                 </span>
                               </div>
@@ -354,10 +355,10 @@ const SolutionCommands: React.FC<SolutionCommandsProps> = ({
                               <div className="flex items-center justify-between">
                                 <span className="truncate cursor-default">Debug</span>
                                 <div className="flex gap-1 flex-shrink-0">
-                                  <span className="bg-white/20 px-1.5 py-0.5 rounded text-[10px] leading-none cursor-default">
-                                    ⌘
+                                  <span className="bg-white/10 rounded-md px-1.5 py-1 text-[11px] leading-none text-white/70 cursor-default">
+                                    {COMMAND_KEY}
                                   </span>
-                                  <span className="bg-white/20 px-1.5 py-0.5 rounded text-[10px] leading-none cursor-default">
+                                  <span className="bg-white/10 rounded-md px-1.5 py-1 text-[11px] leading-none text-white/70 cursor-default">
                                     ↵
                                   </span>
                                 </div>
@@ -391,10 +392,10 @@ const SolutionCommands: React.FC<SolutionCommandsProps> = ({
                         <div className="flex items-center justify-between">
                           <span className="truncate cursor-default">Start Over</span>
                           <div className="flex gap-1 flex-shrink-0">
-                            <span className="bg-white/20 px-1.5 py-0.5 rounded text-[10px] leading-none cursor-default">
-                              ⌘
+                            <span className="bg-white/10 rounded-md px-1.5 py-1 text-[11px] leading-none text-white/70 cursor-default">
+                              {COMMAND_KEY}
                             </span>
-                            <span className="bg-white/20 px-1.5 py-0.5 rounded text-[10px] leading-none cursor-default">
+                            <span className="bg-white/10 rounded-md px-1.5 py-1 text-[11px] leading-none text-white/70 cursor-default">
                               R
                             </span>
                           </div>

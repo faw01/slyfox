@@ -64,6 +64,9 @@ interface ElectronAPI {
   getElectronVersion: () => Promise<string>
   getContentProtection: () => Promise<boolean>
   setContentProtection: (enabled: boolean) => Promise<{ success: boolean; error?: string }>
+  getTaskbarIcon: () => Promise<boolean>
+  setTaskbarIcon: (hidden: boolean) => Promise<{ success: boolean; error?: string }>
+  getPlatform: () => string
 }
 
 export const PROCESSING_EVENTS = {
@@ -277,6 +280,10 @@ const electronAPI = {
   getContentProtection: () => ipcRenderer.invoke('get-content-protection'),
   setContentProtection: (enabled: boolean) => 
     ipcRenderer.invoke('set-content-protection', enabled),
+  getTaskbarIcon: () => ipcRenderer.invoke('get-taskbar-icon'),
+  setTaskbarIcon: (hidden: boolean) => 
+    ipcRenderer.invoke('set-taskbar-icon', hidden),
+  getPlatform: () => process.platform
 } as ElectronAPI
 
 // Before exposing the API

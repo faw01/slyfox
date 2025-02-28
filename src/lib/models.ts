@@ -4,6 +4,24 @@ import { GoogleGenerativeAI, SchemaType } from "@google/generative-ai"
 import { ChatCompletionMessageParam, ChatCompletionCreateParamsBase, ChatCompletion } from "openai/resources/chat/completions"
 import axios from "axios"
 import { ollama } from "./ollama-client"
+import { ElectronAPI } from "../types/electron"
+
+// Import centralized schemas
+import { 
+  problemExtractionSchema as configProblemExtractionSchema,
+  problemSchema, 
+  detailedSolutionSchema, 
+  detailedDebugSchema,
+  getSchemaForTask as configGetSchemaForTask,
+  getGeminiSchemaForTask as configGetGeminiSchemaForTask
+} from "./config/schemas"
+
+// Declare global window property with electronAPI
+declare global {
+  interface Window {
+    electronAPI: ElectronAPI;
+  }
+}
 
 export interface AIModel {
   id: string
@@ -14,10 +32,80 @@ export interface AIModel {
   maxTokens: number
   reasoning_effort?: "low" | "medium" | "high"
   isVisionModel?: boolean
+  thinking?: {
+    type: string
+    budget_tokens: number
+  }
 }
 
-// Vision models
-export const visionModels: AIModel[] = [
+// Vision-capable models
+const visionModelsList: AIModel[] = [
+  {
+    id: "claude-3-7-sonnet-vision",
+    name: "Claude 3.7 Sonnet",
+    description: "Excellent Vision | 2150 CF Elo.",
+    provider: "anthropic",
+    modelId: "claude-3-7-sonnet-20250219",
+    maxTokens: 21_333,
+    isVisionModel: true
+  },
+  {
+    id: "claude-3-7-sonnet-vision-thinking-high",
+    name: "Claude 3.7 Sonnet Thinking (high)",
+    description: "Outstanding Vision | 2300 CF Elo.",
+    provider: "anthropic",
+    modelId: "claude-3-7-sonnet-20250219",
+    maxTokens: 21_333,
+    isVisionModel: true,
+    thinking: {
+      type: "enabled",
+      budget_tokens: 4096
+    }
+  },
+  {
+    id: "claude-3-7-sonnet-vision-thinking-medium",
+    name: "Claude 3.7 Sonnet Thinking (medium)",
+    description: "Superior Vision | 2250 CF Elo.",
+    provider: "anthropic",
+    modelId: "claude-3-7-sonnet-20250219",
+    maxTokens: 21_333,
+    isVisionModel: true,
+    thinking: {
+      type: "enabled",
+      budget_tokens: 2048
+    }
+  },
+  {
+    id: "claude-3-7-sonnet-vision-thinking-low",
+    name: "Claude 3.7 Sonnet Thinking (low)",
+    description: "Great Vision | 2200 CF Elo.",
+    provider: "anthropic",
+    modelId: "claude-3-7-sonnet-20250219",
+    maxTokens: 21_333,
+    isVisionModel: true,
+    thinking: {
+      type: "enabled",
+      budget_tokens: 1024
+    }
+  },
+  {
+    id: "gpt-4o",
+    name: "GPT-4o",
+    description: "Default | 808 CF Elo.",
+    provider: "openai",
+    modelId: "gpt-4o",
+    maxTokens: 4096,
+    isVisionModel: true
+  },
+  {
+    id: "gpt-4.5-vision",
+    name: "GPT-4.5",
+    description: "Latest OpenAI | ~2100 CF Elo.",
+    provider: "openai",
+    modelId: "gpt-4.5-preview",
+    maxTokens: 4096,
+    isVisionModel: true
+  },
   {
     id: "o1",
     name: "o1",
@@ -64,15 +152,6 @@ export const visionModels: AIModel[] = [
     isVisionModel: true
   },
   {
-    id: "gpt-4o",
-    name: "GPT-4o",
-    description: "Meh | 808 CF Elo.",
-    provider: "openai",
-    modelId: "gpt-4o",
-    maxTokens: 4096,
-    isVisionModel: true
-  },
-  {
     id: "gpt-4o-mini",
     name: "GPT-4o mini",
     description: "Not recommended | ~400 CF Elo.",
@@ -83,7 +162,7 @@ export const visionModels: AIModel[] = [
   },
   {
     id: "claude-3-5-sonnet-latest",
-    name: "Claude 3.5 Sonnet",
+    name: "Claude 3.5 Sonnet v2",
     description: "Smart, but expensive | 717 CF Elo.",
     provider: "anthropic",
     modelId: "claude-3-5-sonnet-latest",
@@ -92,8 +171,68 @@ export const visionModels: AIModel[] = [
   }
 ]
 
-// Regular models (excluding vision models)
-export const models: AIModel[] = [
+// Regular models
+const regularModelsList: AIModel[] = [
+  {
+    id: "claude-3-7-sonnet-latest",
+    name: "Claude 3.7 Sonnet",
+    description: "Excellent | 2150 CF Elo.",
+    provider: "anthropic",
+    modelId: "claude-3-7-sonnet-20250219",
+    maxTokens: 21_333
+  },
+  {
+    id: "claude-3-7-sonnet-thinking-high",
+    name: "Claude 3.7 Sonnet Thinking (high)",
+    description: "Outstanding | 2300 CF Elo.",
+    provider: "anthropic",
+    modelId: "claude-3-7-sonnet-20250219",
+    maxTokens: 21_333,
+    thinking: {
+      type: "enabled",
+      budget_tokens: 4096
+    }
+  },
+  {
+    id: "claude-3-7-sonnet-thinking-medium",
+    name: "Claude 3.7 Sonnet Thinking (medium)",
+    description: "Superior | 2250 CF Elo.",
+    provider: "anthropic",
+    modelId: "claude-3-7-sonnet-20250219",
+    maxTokens: 21_333,
+    thinking: {
+      type: "enabled",
+      budget_tokens: 2048
+    }
+  },
+  {
+    id: "claude-3-7-sonnet-thinking-low",
+    name: "Claude 3.7 Sonnet Thinking (low)",
+    description: "Great | 2200 CF Elo.",
+    provider: "anthropic",
+    modelId: "claude-3-7-sonnet-20250219",
+    maxTokens: 21_333,
+    thinking: {
+      type: "enabled",
+      budget_tokens: 1024
+    }
+  },
+  {
+    id: "claude-3-5-sonnet-latest",
+    name: "Claude 3.5 Sonnet v2",
+    description: "Very Good | 2100 CF Elo.",
+    provider: "anthropic",
+    modelId: "claude-3-5-sonnet-20240620",
+    maxTokens: 21_333
+  },
+  {
+    id: "claude-3-5-haiku-latest",
+    name: "Claude 3.5 Haiku",
+    description: "Fast | 1950 CF Elo.",
+    provider: "anthropic",
+    modelId: "claude-3-5-haiku-20240620",
+    maxTokens: 21_333
+  },
   {
     id: "o1-mini",
     name: "o1-mini",
@@ -128,6 +267,14 @@ export const models: AIModel[] = [
     modelId: "o3-mini",
     maxTokens: 4096,
     reasoning_effort: "high"
+  },
+  {
+    id: "gpt-4.5",
+    name: "GPT-4.5",
+    description: "Latest OpenAI | ~2100 CF Elo.",
+    provider: "openai",
+    modelId: "gpt-4.5-preview",
+    maxTokens: 4096
   },
   {
     id: "deepseek-r1",
@@ -187,6 +334,12 @@ export const models: AIModel[] = [
   }
 ]
 
+// Combined models array with both regular and vision models
+export const models: AIModel[] = [...regularModelsList, ...visionModelsList]
+
+// Export vision models for backward compatibility
+export const visionModels = visionModelsList
+
 // Helper function to get vision models
 export const getVisionModels = () => models.filter(model => model.isVisionModel)
 
@@ -195,152 +348,10 @@ export interface AIResponse {
   _request_id?: string
 }
 
-// Structured output schemas
-export const problemExtractionSchema = {
-  name: "extract_problem",
-  description: "Extract coding problem details from the provided information",
-  parameters: {
-    type: "object",
-    properties: {
-      title: {
-        type: "string",
-        description: "The title of the coding problem"
-      },
-      problem_statement: {
-        type: "string",
-        description: "Clear and complete problem statement combining title and description"
-      },
-      input_format: {
-        type: "object",
-        description: "Input parameters and their types",
-        properties: {
-          parameters: {
-            type: "array",
-            items: {
-              type: "object",
-              properties: {
-                name: { type: "string" },
-                type: { type: "string" },
-                description: { type: "string" }
-              }
-            }
-          }
-        }
-      },
-      output_format: {
-        type: "object",
-        description: "Expected output format and type",
-        properties: {
-          type: { type: "string" },
-          description: { type: "string" }
-        }
-      },
-      complexity: {
-        type: "object",
-        properties: {
-          time: { type: "string" },
-          space: { type: "string" }
-        }
-      },
-      test_cases: {
-        type: "array",
-        items: {
-          type: "object",
-          properties: {
-            input: { type: "string" },
-            output: { type: "string" },
-            explanation: { type: "string" }
-          }
-        }
-      },
-      validation_type: {
-        type: "string",
-        enum: ["unit_tests", "example_cases", "constraints", "edge_cases"]
-      },
-      difficulty: {
-        type: "string",
-        enum: ["easy", "medium", "hard"]
-      }
-    },
-    required: ["title", "problem_statement", "input_format", "output_format", "test_cases"]
-  }
-}
-
-export const solutionSchema = {
-  name: "generate_solution",
-  description: "Generate an optimized solution for the coding problem",
-  parameters: {
-    type: "object",
-    properties: {
-      code: {
-        type: "string",
-        description: "The complete solution code"
-      },
-      thoughts: {
-        type: "array",
-        items: { type: "string" },
-        description: "Step-by-step explanation of the solution approach"
-      },
-      approach: {
-        type: "string",
-        enum: ["brute_force", "optimized", "dynamic_programming", "greedy"],
-        description: "The type of approach used"
-      },
-      time_complexity: {
-        type: "string",
-        description: "Time complexity analysis in Big O notation"
-      },
-      space_complexity: {
-        type: "string",
-        description: "Space complexity analysis in Big O notation"
-      }
-    },
-    required: ["code", "thoughts", "time_complexity", "space_complexity"]
-  }
-}
-
-export const debugSchema = {
-  name: "debug_code",
-  description: "Analyze and debug the provided code",
-  parameters: {
-    type: "object",
-    properties: {
-      issues: {
-        type: "array",
-        items: {
-          type: "object",
-          properties: {
-            type: {
-              type: "string",
-              enum: ["logic_error", "syntax_error", "performance_issue", "edge_case"]
-            },
-            location: { type: "string" },
-            description: { type: "string" },
-            fix: { type: "string" }
-          }
-        }
-      },
-      new_code: {
-        type: "string",
-        description: "The corrected code"
-      },
-      improvements: {
-        type: "array",
-        items: { type: "string" },
-        description: "List of improvements made"
-      },
-      time_complexity: {
-        type: "string",
-        description: "Time complexity of the improved solution"
-      },
-      space_complexity: {
-        type: "string",
-        description: "Space complexity of the improved solution"
-      }
-    },
-    required: ["issues", "new_code", "time_complexity", "space_complexity"]
-  }
-}
+// Re-export schemas from our centralized configuration
+export const problemExtractionSchema = configProblemExtractionSchema;
+export const solutionSchema = detailedSolutionSchema;
+export const debugSchema = detailedDebugSchema;
 
 // Function to check if a model needs structured output
 export function needsStructuredOutput(modelId: string): boolean {
@@ -349,178 +360,7 @@ export function needsStructuredOutput(modelId: string): boolean {
 
 // Function to get the appropriate schema based on the task
 export function getSchemaForTask(task: 'extract' | 'solve' | 'debug'): any {
-  switch (task) {
-    case 'extract':
-      return {
-        type: "object",
-        properties: {
-          title: {
-            type: "string",
-            description: "The title of the problem"
-          },
-          problem_statement: { 
-            type: "string",
-            description: "Clear problem statement combining title and description"
-          },
-          input_format: { 
-            type: "object",
-            description: "Input parameters and their types",
-            properties: {
-              parameters: {
-                type: "array",
-                items: {
-                  type: "object",
-                  properties: {
-                    name: { type: "string" },
-                    type: { type: "string" },
-                    description: { type: "string" }
-                  },
-                  required: ["name", "type", "description"],
-                  additionalProperties: false
-                }
-              }
-            },
-            required: ["parameters"],
-            additionalProperties: false
-          },
-          output_format: { 
-            type: "object",
-            description: "Expected output format and type",
-            properties: {
-              type: { type: "string" },
-              description: { type: "string" }
-            },
-            required: ["type", "description"],
-            additionalProperties: false
-          },
-          complexity: {
-            type: "object",
-            properties: {
-              time: { type: "string" },
-              space: { type: "string" }
-            },
-            required: ["time", "space"],
-            additionalProperties: false
-          },
-          test_cases: {
-            type: "array",
-            items: {
-              type: "object",
-              properties: {
-                input: { type: "string" },
-                output: { type: "string" },
-                explanation: { type: "string" }
-              },
-              required: ["input", "output", "explanation"],
-              additionalProperties: false
-            }
-          },
-          validation_type: {
-            type: "string",
-            enum: ["unit_tests", "example_cases", "constraints", "edge_cases"]
-          },
-          difficulty: {
-            type: "string",
-            enum: ["easy", "medium", "hard"]
-          }
-        },
-        required: [
-          "title",
-          "problem_statement",
-          "input_format",
-          "output_format",
-          "complexity",
-          "test_cases",
-          "validation_type",
-          "difficulty"
-        ],
-        additionalProperties: false
-      }
-    case 'solve':
-      return {
-        type: "object",
-        properties: {
-          code: { 
-            type: "string",
-            description: "The complete solution code"
-          },
-          thoughts: {
-            type: "array",
-            items: { type: "string" },
-            description: "Step-by-step explanation of the solution approach"
-          },
-          approach: {
-            type: "string",
-            enum: ["brute_force", "optimized", "dynamic_programming", "greedy"],
-            description: "The type of approach used"
-          },
-          time_complexity: {
-            type: "string",
-            description: "Time complexity analysis in Big O notation"
-          },
-          space_complexity: {
-            type: "string",
-            description: "Space complexity analysis in Big O notation"
-          }
-        },
-        required: [
-          "code",
-          "thoughts",
-          "approach",
-          "time_complexity",
-          "space_complexity"
-        ],
-        additionalProperties: false
-      }
-    case 'debug':
-      return {
-        type: "object",
-        properties: {
-          issues: {
-            type: "array",
-            items: {
-              type: "object",
-              properties: {
-                type: {
-                  type: "string",
-                  enum: ["logic_error", "syntax_error", "performance_issue", "edge_case"]
-                },
-                location: { type: "string" },
-                description: { type: "string" },
-                fix: { type: "string" }
-              },
-              required: ["type", "location", "description", "fix"],
-              additionalProperties: false
-            }
-          },
-          new_code: {
-            type: "string",
-            description: "The corrected code"
-          },
-          improvements: {
-            type: "array",
-            items: { type: "string" },
-            description: "List of improvements made"
-          },
-          time_complexity: {
-            type: "string",
-            description: "Time complexity of the improved solution"
-          },
-          space_complexity: {
-            type: "string",
-            description: "Space complexity of the improved solution"
-          }
-        },
-        required: [
-          "issues",
-          "new_code",
-          "improvements",
-          "time_complexity",
-          "space_complexity"
-        ],
-        additionalProperties: false
-      }
-  }
+  return configGetSchemaForTask(task);
 }
 
 // Function to check if a model is Claude
@@ -544,140 +384,7 @@ Important Instructions for JSON Output:
 }
 
 function getGeminiSchemaForTask(task: 'extract' | 'solve' | 'debug'): any {
-  switch (task) {
-    case 'extract':
-      return {
-        description: "Problem information extracted from screenshots",
-        type: SchemaType.OBJECT,
-        properties: {
-          problem_statement: {
-            type: SchemaType.STRING,
-            description: "Clear problem statement combining title and description",
-            nullable: false
-          },
-          input_format: {
-            type: SchemaType.STRING,
-            description: "Input format with parameters",
-            nullable: false
-          },
-          output_format: {
-            type: SchemaType.STRING,
-            description: "Output format with type information",
-            nullable: false
-          },
-          complexity: {
-            type: SchemaType.OBJECT,
-            properties: {
-              time: {
-                type: SchemaType.STRING,
-                description: "Time complexity requirements",
-                nullable: false
-              },
-              space: {
-                type: SchemaType.STRING,
-                description: "Space complexity requirements",
-                nullable: false
-              }
-            },
-            required: ["time", "space"]
-          },
-          examples: {
-            type: SchemaType.STRING,
-            description: "Example test cases",
-            nullable: false
-          },
-          validation: {
-            type: SchemaType.STRING,
-            description: "Validation approach",
-            nullable: false
-          },
-          difficulty: {
-            type: SchemaType.STRING,
-            description: "Difficulty level",
-            nullable: false
-          }
-        },
-        required: ["problem_statement", "input_format", "output_format", "complexity", "examples", "validation", "difficulty"]
-      }
-    case 'solve':
-      return {
-        description: "Solution for the coding problem",
-        type: SchemaType.OBJECT,
-        properties: {
-          approach: {
-            type: SchemaType.STRING,
-            description: "Detailed explanation of the solution approach",
-            nullable: false
-          },
-          code: {
-            type: SchemaType.STRING,
-            description: "Implementation in the specified language",
-            nullable: false
-          },
-          complexity: {
-            type: SchemaType.OBJECT,
-            properties: {
-              time: {
-                type: SchemaType.STRING,
-                description: "Time complexity analysis",
-                nullable: false
-              },
-              space: {
-                type: SchemaType.STRING,
-                description: "Space complexity analysis",
-                nullable: false
-              }
-            },
-            required: ["time", "space"]
-          },
-          explanation: {
-            type: SchemaType.STRING,
-            description: "Step by step explanation of the code",
-            nullable: false
-          }
-        },
-        required: ["approach", "code", "complexity", "explanation"]
-      }
-    case 'debug':
-      return {
-        description: "Debug analysis of the code",
-        type: SchemaType.OBJECT,
-        properties: {
-          issues: {
-            type: SchemaType.STRING,
-            description: "List of identified issues",
-            nullable: false
-          },
-          improvements: {
-            type: SchemaType.STRING,
-            description: "Suggested improvements",
-            nullable: false
-          },
-          corrected_code: {
-            type: SchemaType.STRING,
-            description: "Fixed implementation",
-            nullable: false
-          },
-          complexity: {
-            type: SchemaType.OBJECT,
-            properties: {
-              time: {
-                type: SchemaType.STRING,
-                description: "Time complexity of improved solution",
-                nullable: false
-              },
-              space: {
-                type: SchemaType.STRING,
-                description: "Space complexity of improved solution",
-                nullable: false
-              }
-            },
-            required: ["time", "space"]
-          }
-        },
-        required: ["issues", "improvements", "corrected_code", "complexity"]
-      }
-  }
+  return configGetGeminiSchemaForTask(task);
 }
 
 export class AIModelManager {
@@ -865,6 +572,95 @@ export class AIModelManager {
     }
   }
 
+  private async callAnthropicApi(
+    model: AIModel,
+    messages: Array<{ role: string; content: any }>,
+    options: { signal?: AbortSignal; systemPrompt?: string } = {}
+  ): Promise<AIResponse> {
+    if (!this.anthropic) {
+      throw new Error("Anthropic client not initialized")
+    }
+
+    // Properly format messages for Claude's API
+    const formattedMessages = messages.map(message => {
+      const role = message.role === 'system' ? 'user' : message.role as 'user' | 'assistant'
+      
+      if (typeof message.content === 'string') {
+        return { role, content: message.content }
+      }
+      
+      // Handle array of content (text + images)
+      if (Array.isArray(message.content)) {
+        return {
+          role,
+          content: message.content.map(item => {
+            if (item.type === 'text') {
+              return { type: 'text', text: item.text }
+            } else if (item.type === 'image_url') {
+              return {
+                type: 'image',
+                source: {
+                  type: 'base64',
+                  media_type: 'image/png',
+                  data: item.image_url.url.split(',')[1] // Remove the data:image/png;base64, prefix
+                }
+              }
+            }
+            return item
+          })
+        }
+      }
+      
+      return { role, content: JSON.stringify(message.content) }
+    })
+
+    const response = await this.anthropic.messages.create({
+      model: model.modelId,
+      max_tokens: model.maxTokens,
+      messages: formattedMessages,
+      system: options.systemPrompt
+    })
+
+    if (!response.content.length) {
+      throw new Error("Empty response from Anthropic API")
+    }
+
+    const firstContent = response.content[0]
+    
+    if (firstContent.type !== 'text') {
+      throw new Error(`Expected text response, got ${firstContent.type}`)
+    }
+
+    const textContent = firstContent as { type: 'text'; text: string }
+    
+    // For Claude models with system prompt, ensure the response starts with { and ends with }
+    if (options.systemPrompt) {
+      let responseText = textContent.text.trim()
+      if (!responseText.startsWith('{')) {
+        responseText = '{' + responseText
+      }
+      if (!responseText.endsWith('}')) {
+        responseText = responseText + '}'
+      }
+      return {
+        content: responseText,
+        _request_id: response.id
+      }
+    }
+    
+    return {
+      content: textContent.text,
+      _request_id: response.id
+    }
+  }
+
+  /**
+   * Generate a completion using the appropriate AI model
+   * @param modelId ID of the model to use
+   * @param messages Array of message objects to send to the AI
+   * @param options Optional parameters including signal for abort controller
+   * @returns Promise with the AI response
+   */
   async generateCompletion(
     modelId: string,
     messages: Array<{ role: string; content: any }>,
@@ -916,7 +712,7 @@ export class AIModelManager {
     }
 
     // Search in both regular and vision models arrays
-    const model = [...models, ...visionModels].find((m) => m.id === modelId)
+    const model = models.find((m) => m.id === modelId)
     if (!model) throw new Error(`Model ${modelId} not found`)
 
     switch (model.provider) {
@@ -932,10 +728,19 @@ export class AIModelManager {
         // Convert messages to OpenAI format and add developer message
         const openaiMessages: ChatCompletionMessageParam[] = [
           developerMessage,
-          ...messages.map(m => ({
-            role: m.role === "system" ? "developer" : m.role as "user" | "assistant",
-            content: m.content
-          }))
+          ...messages.map(m => {
+            if (m.role === 'function') {
+              return {
+                role: m.role,
+                content: m.content,
+                name: 'default_function' // Add name for function messages
+              } as ChatCompletionMessageParam
+            }
+            return {
+              role: m.role === "system" ? "developer" : m.role as "user" | "assistant",
+              content: m.content
+            } as ChatCompletionMessageParam
+          })
         ]
 
         // Only include reasoning_effort for "o" models
@@ -975,77 +780,10 @@ export class AIModelManager {
           }
         }
 
-        // Properly format messages for Claude's vision API
-        const formattedMessages = messages.map(message => {
-          const role = message.role === 'system' ? 'user' : message.role as 'user' | 'assistant'
-          
-          if (typeof message.content === 'string') {
-            return { role, content: message.content }
-          }
-          
-          // Handle array of content (text + images)
-          if (Array.isArray(message.content)) {
-            return {
-              role,
-              content: message.content.map(item => {
-                if (item.type === 'text') {
-                  return { type: 'text', text: item.text }
-                } else if (item.type === 'image_url') {
-                  return {
-                    type: 'image',
-                    source: {
-                      type: 'base64',
-                      media_type: 'image/png',
-                      data: item.image_url.url.split(',')[1] // Remove the data:image/png;base64, prefix
-                    }
-                  }
-                }
-                return item
-              })
-            }
-          }
-          
-          return { role, content: JSON.stringify(message.content) }
+        return this.callAnthropicApi(model, messages, { 
+          signal: options.signal, 
+          systemPrompt: systemMessage 
         })
-
-        const response = await this.anthropic.messages.create({
-          model: model.modelId,
-          max_tokens: model.maxTokens,
-          messages: formattedMessages,
-          system: systemMessage
-        })
-
-        if (!response.content.length) {
-          throw new Error("Empty response from Anthropic API")
-        }
-
-        const firstContent = response.content[0]
-        
-        if (firstContent.type !== 'text') {
-          throw new Error(`Expected text response, got ${firstContent.type}`)
-        }
-
-        const textContent = firstContent as { type: 'text'; text: string }
-        
-        // For Claude models, ensure the response starts with { and ends with }
-        if (isClaudeModel(model.modelId) && systemMessage) {
-          let responseText = textContent.text.trim()
-          if (!responseText.startsWith('{')) {
-            responseText = '{' + responseText
-          }
-          if (!responseText.endsWith('}')) {
-            responseText = responseText + '}'
-          }
-          return {
-            content: responseText,
-            _request_id: response.id
-          }
-        }
-        
-        return {
-          content: textContent.text,
-          _request_id: response.id
-        }
       }
 
       case "google": {
@@ -1068,4 +806,4 @@ export function createAIManager(store?: any) {
 }
 
 // For backwards compatibility in renderer process
-export const aiManager = typeof window !== 'undefined' ? new AIModelManager() : null 
+export const aiManager = typeof window !== 'undefined' ? new AIModelManager() : null

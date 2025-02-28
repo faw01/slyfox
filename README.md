@@ -1,6 +1,6 @@
 # Slyfox
 
-An invisible desktop application that will help you pass your technical interviews based on [Interview Coder](https://www.interviewcoder.co). 
+An invisible desktop application that will help you pass your technical interviews based on [slyfox](https://www.interviewcoder.co). 
 
 ## Invisibility Compatibility
 
@@ -29,6 +29,6 @@ Note: The application is **NOT** invisible to:
 ## Building
 
 ```
-node scripts/manual-notarize.js "release/Interview-Coder-x64.dmg" && xcrun stapler staple "release/Interview-Coder-x64.dmg"
-node scripts/manual-notarize.js "release/Interview-Coder-arm64.dmg" && xcrun stapler staple "release/Interview-Coder-arm64.dmg"
+node scripts/manual-notarize.js "release/slyfox-x64.dmg" && xcrun stapler staple "release/slyfox-x64.dmg"
+node scripts/manual-notarize.js "release/slyfox-arm64.dmg" && xcrun stapler staple "release/slyfox-arm64.dmg"
 ```

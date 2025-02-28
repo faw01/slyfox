@@ -6,7 +6,7 @@ async function notarizeApp(dmgPath) {
   const fullPath = path.resolve(
     __dirname,
     "..",
-    dmgPath || "release/Interview Coder-x64.dmg"
+    dmgPath || "release/slyfox-x64.dmg"
   )
   console.log("Starting notarization...")
   console.log("DMG Path:", fullPath)
@@ -15,7 +15,7 @@ async function notarizeApp(dmgPath) {
     await notarize({
       tool: "notarytool",
       appPath: fullPath,
-      appBundleId: "com.chunginlee.interviewcoder",
+      appBundleId: "com.faw.slyfox",
       appleId: process.env.APPLE_ID,
       appleIdPassword: process.env.APPLE_APP_SPECIFIC_PASSWORD,
       teamId: process.env.APPLE_TEAM_ID

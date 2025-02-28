@@ -41,17 +41,26 @@ const SolutionSection = ({
   title,
   content,
   isLoading,
-  currentLanguage
+  currentLanguage,
+  approach
 }: {
   title: string
   content: React.ReactNode
   isLoading: boolean
   currentLanguage: string
+  approach: string | null
 }) => (
   <div className="space-y-2">
-    <h2 className="text-[13px] font-medium text-white tracking-wide">
-      {title}
-    </h2>
+    <div className="flex items-center gap-2">
+      <h2 className="text-[13px] font-medium text-white tracking-wide">
+        {title}
+      </h2>
+      {approach && !isLoading && (
+        <span className="px-2 py-0.5 rounded text-[11px] bg-purple-700/50 text-white">
+          {approach}
+        </span>
+      )}
+    </div>
     {isLoading ? (
       <div className="space-y-1.5">
         <div className="mt-4 flex">
@@ -145,11 +154,43 @@ export const LeetcodeMatchSection = ({
             <span className="ml-2 px-1.5 py-0.5 rounded text-[10px] bg-gray-700">
               {leetcodeMatch.difficulty}
             </span>
+            {leetcodeMatch.pattern && (
+              <span className="ml-2 px-1.5 py-0.5 rounded text-[10px] bg-blue-700/60">
+                {leetcodeMatch.pattern}
+              </span>
+            )}
           </div>
         </div>
       </div>
     ) : (
       <p className="text-[13px] text-gray-400">No similar problems found</p>
+    )}
+  </div>
+)
+
+export const ApproachSection = ({
+  approach,
+  isLoading
+}: {
+  approach: string | null
+  isLoading: boolean
+}) => (
+  <div className="space-y-2">
+    <h2 className="text-[13px] font-medium text-white tracking-wide">
+      Solution Pattern
+    </h2>
+    {isLoading ? (
+      <p className="text-xs bg-gradient-to-r from-gray-300 via-gray-100 to-gray-300 bg-clip-text text-transparent animate-pulse">
+        Analyzing approach...
+      </p>
+    ) : approach ? (
+      <div className="flex items-center mt-0.5">
+        <span className="px-2 py-1 rounded text-[12px] bg-purple-700/50 text-white">
+          {approach}
+        </span>
+      </div>
+    ) : (
+      <p className="text-[13px] text-gray-400">No pattern identified</p>
     )}
   </div>
 )
@@ -184,6 +225,8 @@ const Solutions: React.FC<SolutionsProps> = ({
   const [spaceComplexityData, setSpaceComplexityData] = useState<string | null>(
     null
   )
+  const [leetcodeMatchData, setLeetcodeMatchData] = useState<ProblemStatementData['leetcode_match'] | null>(null)
+  const [approachData, setApproachData] = useState<string | null>(null)
 
   const [isTooltipVisible, setIsTooltipVisible] = useState(false)
   const [tooltipHeight, setTooltipHeight] = useState(0)
@@ -322,18 +365,31 @@ const Solutions: React.FC<SolutionsProps> = ({
           return
         }
         console.log({ data })
+        
+        // Handle both flat and nested complexity properties
+        const timeComplexity = data.time_complexity || 
+                              (data.complexity && data.complexity.time) || 
+                              (data.constraints && data.constraints.time);
+        const spaceComplexity = data.space_complexity || 
+                                 (data.complexity && data.complexity.space) || 
+                                 (data.constraints && data.constraints.space);
+        
         const solutionData = {
           code: data.code,
           thoughts: data.thoughts,
-          time_complexity: data.time_complexity,
-          space_complexity: data.space_complexity
+          time_complexity: timeComplexity,
+          space_complexity: spaceComplexity,
+          leetcode_match: data.leetcode_match || null,
+          approach: data.approach || null
         }
 
         queryClient.setQueryData(["solution"], solutionData)
         setSolutionData(solutionData.code || null)
         setThoughtsData(solutionData.thoughts || null)
-        setTimeComplexityData(solutionData.time_complexity || null)
-        setSpaceComplexityData(solutionData.space_complexity || null)
+        setTimeComplexityData(timeComplexity || null)
+        setSpaceComplexityData(spaceComplexity || null)
+        setLeetcodeMatchData(data.leetcode_match || null)
+        setApproachData(data.approach || null)
 
         // Fetch latest screenshots when solution is successful
         const fetchScreenshots = async () => {
@@ -539,7 +595,7 @@ const Solutions: React.FC<SolutionsProps> = ({
                       isLoading={!problemStatementData}
                     />
                     <LeetcodeMatchSection
-                      leetcodeMatch={problemStatementData?.leetcode_match || null}
+                      leetcodeMatch={leetcodeMatchData}
                       isLoading={!problemStatementData}
                     />
 
@@ -570,6 +626,7 @@ const Solutions: React.FC<SolutionsProps> = ({
                       content={solutionData}
                       isLoading={!solutionData}
                       currentLanguage={currentLanguage}
+                      approach={approachData}
                     />
 
                     <ComplexitySection

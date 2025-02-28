@@ -1,3 +1,4 @@
+// @ts-ignore - Ollama typing issues with current module resolution
 import { Ollama } from 'ollama/browser'
 
 // Create Ollama client instance

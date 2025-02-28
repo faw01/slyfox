@@ -8,6 +8,12 @@ import { BrowserWindow } from "electron"
 import { createAIManager } from "../src/lib/models"
 import { store } from "./store"
 
+// Import centralized configuration
+import { createProblemExtractionMessages } from "../src/lib/config/prompts/extract"
+import { createSolutionGenerationMessages } from "../src/lib/config/prompts/solve"
+import { createDebugMessages } from "../src/lib/config/prompts/debug"
+import { getConfigForTask } from "../src/lib/config"
+
 const isDev = !app.isPackaged
 
 export class ProcessingHelper {
@@ -294,41 +300,8 @@ export class ProcessingHelper {
 
         // First API call - extract problem info
         try {
-          const messages = [
-            {
-              role: "developer",
-              content: `You are a coding assistant that extracts Leetcode problem information from screenshots into structured data. 
-                       Extract key details and return them in JSON format with the following structure:
-                       {
-                         "title": "The title of the problem",
-                         "problem_statement": "Clear problem statement combining title and description",
-                         "input_format": "Input format with parameters",
-                         "output_format": "Output format with type information",
-                         "complexity": {
-                           "time": "Time complexity requirements",
-                           "space": "Space complexity requirements"
-                         },
-                         "examples": "Example test cases",
-                         "validation": "Validation approach",
-                         "difficulty": "Difficulty level"
-                       }`
-            },
-            {
-              role: "user",
-              content: [
-                { 
-                  type: "text", 
-                  text: "Extract the coding problem details and return them as a JSON object." 
-                },
-                ...imageDataList.map(data => ({
-                  type: "image_url",
-                  image_url: {
-                    url: `data:image/png;base64,${data}`
-                  }
-                }))
-              ]
-            }
-          ]
+          // Use centralized prompt configuration instead of hardcoded messages
+          const messages = createProblemExtractionMessages(imageDataList)
 
           const extractResponse = await this.aiManager.generateCompletion(
             visionModel,
@@ -409,70 +382,8 @@ export class ProcessingHelper {
         throw new Error("No problem info available")
       }
 
-      const messages = [
-        {
-          role: "developer",
-          content: `You are a coding assistant that generates optimized code solutions with detailed explanations for Leetcode problems.
-                   For the given problem, analyze the requirements and return a JSON response with:
-                   {
-                     "thoughts": ["Your step-by-step thought process using the UMPIRE method (Understand: test cases & edge cases)", 
-                                "Match: identify problem pattern from a possible set of Leetcode patterns",
-                                "Plan: visualization & approach",
-                                "Implement: single function solution",
-                                "Review: step through code",
-                                "Evaluate: complexity & tradeoffs"],
-                     "leetcode_match": {
-                       "problem_number": "Number of the most similar Leetcode problem",
-                       "title": "Title of the most similar Leetcode problem",
-                       "difficulty": "Difficulty of the matched problem",
-                       "pattern": "One of: Sliding Window, Two Pointers, Fast & Slow Pointers, Merge Intervals, Cyclic Sort, In-place Reversal of LinkedList, Tree BFS, Tree DFS, Two Heaps, Subsets, Modified Binary Search, Top K Elements, K-way Merge, Topological Sort, 0/1 Knapsack"
-                     },
-                     "approach": "Detailed solution approach following UMPIRE strategy, focusing on the core algorithm without any helper functions",
-                     "code": "Implementation in a single function without helper functions. IMPORTANT: Write sequential comments explaining your thought process, reasoning, and any doubts/considerations. Example as follows:
-
-                     Let me walk you through my implementation process:
-
-                     First, I'll set up the basic structure we need.
-                     # Define our main function with the required parameters
-                     # This signature matches the problem requirements exactly
-                     def solution(nums: List[int], k: int) -> int:
-                         pass
-
-                     I'm considering using a sliding window approach, though I briefly thought about using sorting.
-                     # Initialize sliding window variables for tracking our current window
-                     # Sliding window is more efficient than sorting (O(n) vs O(nlogn))
-                     window_sum = 0
-                     max_sum = float('-inf')
-
-                     Now, I'm thinking we need to handle edge cases. What if k > len(nums)?
-                     # Add input validation to handle edge cases
-                     # This prevents runtime errors and makes our solution more robust
-                     if k > len(nums):
-                         return 0
-
-                     Here's where it gets interesting - we could use a deque for O(1) operations.
-                     # Create a deque for efficient window management
-                     # While a regular array would work, deque gives us O(1) for both ends
-                     # This is a trade-off: slightly more memory for better time complexity
-                     window = collections.deque()
-
-                     Make sure each section includes:
-                     1. What you're about to implement and why
-                     2. Any alternative approaches you considered
-                     3. Trade-offs and reasoning behind your decisions
-                     4. Clear explanation of how each part contributes to the solution",
-                     "complexity": {
-                       "time": "Time complexity analysis with detailed explanation",
-                       "space": "Space complexity analysis with detailed explanation"
-                     },
-                     "explanation": "Step by step explanation of how the code works"
-                   }`
-        },
-        {
-          role: "user",
-          content: `Generate a solution for this coding problem and return it as a JSON object. Problem: ${JSON.stringify(problemInfo)}.`
-        }
-      ]
+      // Use centralized prompt configuration instead of hardcoded messages
+      const messages = createSolutionGenerationMessages(problemInfo)
 
       const response = await this.aiManager.generateCompletion(
         model,
@@ -527,51 +438,8 @@ export class ProcessingHelper {
         throw new Error("No problem info available")
       }
 
-      const messages = [
-        {
-          role: "developer",
-          content: `You are a coding assistant that debugs code and provides improved solutions with explanations.
-                   Analyze the code and return a JSON response with:
-                   {
-                     "what_changed": "Explain what modifications were made to handle the follow-up requirements while preserving the core solution structure",
-                     "issues": "List of identified issues or new requirements",
-                     "improvements": "Suggested improvements that build upon the existing solution",
-                     "modified_code": "Enhanced implementation that extends the original solution. IMPORTANT: Every line (both existing and new) must have a detailed comment explaining its purpose, why it's needed, and how it contributes to the solution. For modified lines, explain why the change was needed. Comments should be descriptive and explain the reasoning behind each operation.",
-                     "complexity": {
-                       "time": "Updated time complexity after modifications",
-                       "space": "Updated space complexity after modifications"
-                     },
-                     "follow_ups": "Potential follow-up questions and how they could be solved by further extending this solution"
-                   }
-
-                   Example comment style:
-                   # [MODIFIED] Changed array to heap to efficiently find k largest elements
-                   # Using heap because follow-up requires finding kth largest in O(log n) time instead of O(n)
-                   max_heap = []
-                   
-                   # [NEW] Track heap size to maintain only k elements
-                   # This ensures space complexity remains O(k) instead of O(n)
-                   current_size = 0
-                   
-                   Make sure every line has this level of detailed explanation, clearly marking modified and new lines.
-                   Important: Focus on modifying the existing solution rather than creating a new one from scratch.`
-        },
-        {
-          role: "user",
-          content: [
-            { 
-              type: "text", 
-              text: `Debug and enhance this code to handle follow-up requirements while maintaining the core solution structure. Problem: ${JSON.stringify(problemInfo)}.` 
-            },
-            ...imageDataList.map(data => ({
-              type: "image_url",
-              image_url: {
-                url: `data:image/png;base64,${data}`
-              }
-            }))
-          ]
-        }
-      ]
+      // Use centralized prompt configuration instead of hardcoded messages
+      const messages = createDebugMessages(problemInfo, imageDataList)
 
       const response = await this.aiManager.generateCompletion(
         visionModel,

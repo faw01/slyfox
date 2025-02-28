@@ -2,6 +2,7 @@
 
 import { ipcMain, shell, app } from "electron"
 import { randomBytes } from "crypto"
+import { createClient } from '@supabase/supabase-js'
 import { store } from "./store"
 import { IIpcHandlerDeps } from "./main"
 
@@ -357,14 +358,16 @@ export function initializeIpcHandlers(deps: IIpcHandlerDeps): void {
     return store.get('contentProtection') ?? true
   })
 
-  ipcMain.handle('set-content-protection', (_event, enabled: boolean) => {
+  // Content protection settings
+  ipcMain.handle("set-content-protection", (_, enabled) => {
     const mainWindow = deps.getMainWindow()
-    if (mainWindow) {
+    if (mainWindow && !mainWindow.isDestroyed()) {
       try {
-        // Store the setting
-        store.set('contentProtection', enabled)
-        
-        // Apply all screen capture resistance settings
+        // Save the setting
+        console.log(`Setting content protection to: ${enabled}`)
+        store.set("contentProtection", enabled)
+
+        // Apply the setting
         mainWindow.setContentProtection(enabled)
         mainWindow.setHiddenInMissionControl(enabled)
         mainWindow.setVisibleOnAllWorkspaces(enabled, {
@@ -372,8 +375,7 @@ export function initializeIpcHandlers(deps: IIpcHandlerDeps): void {
         })
         mainWindow.setAlwaysOnTop(enabled, "floating", 1)
         
-        // Apply these settings for all platforms
-        mainWindow.setSkipTaskbar(enabled)
+        // No longer controlling taskbar visibility here
         mainWindow.setHasShadow(!enabled)
         
         // macOS specific settings
@@ -391,5 +393,59 @@ export function initializeIpcHandlers(deps: IIpcHandlerDeps): void {
       }
     }
     return { error: 'No main window available' }
+  })
+
+  // New handler for taskbar icon visibility
+  ipcMain.handle("set-taskbar-icon", (_, hidden) => {
+    const mainWindow = deps.getMainWindow()
+    if (mainWindow && !mainWindow.isDestroyed()) {
+      try {
+        // Save the setting
+        console.log(`Setting taskbar icon hidden: ${hidden}`)
+        store.set("taskbarIconHidden", hidden)
+
+        // Apply the setting based on platform
+        if (process.platform === 'darwin') {
+          // On macOS, use the dock API
+          console.log(`Using macOS dock API. Platform: ${process.platform}, hidden: ${hidden}`)
+          if (hidden) {
+            console.log('Hiding dock icon')
+            app.dock.hide()
+          } else {
+            console.log('Showing dock icon')
+            app.dock.show()
+          }
+        } else {
+          // On Windows/Linux, use setSkipTaskbar
+          console.log(`Using setSkipTaskbar. Platform: ${process.platform}, hidden: ${hidden}`)
+          mainWindow.setSkipTaskbar(hidden)
+        }
+        
+        return { success: true }
+      } catch (error) {
+        console.error('Error setting taskbar icon visibility:', error)
+        return { error: 'Failed to set taskbar icon visibility' }
+      }
+    }
+    return { error: 'No main window available' }
+  })
+
+  // Get taskbar icon state
+  ipcMain.handle("get-taskbar-icon", () => {
+    try {
+      const isHidden = store.get("taskbarIconHidden") ?? false
+      
+      // For macOS, also check the actual dock state
+      if (process.platform === 'darwin') {
+        const dockVisible = app.dock.isVisible()
+        console.log(`macOS dock status - store:${isHidden}, dock.isVisible:${dockVisible}`)
+        return isHidden && !dockVisible
+      }
+      
+      return isHidden
+    } catch (error) {
+      console.error('Error getting taskbar icon state:', error)
+      return false
+    }
   })
 }

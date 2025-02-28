@@ -4,6 +4,8 @@ interface StoreSchema {
   model: string;
   theme: 'light' | 'dark';
   opacity: number;
+  contentProtection: boolean;
+  taskbarIconHidden: boolean;
   apiKeys: {
     openai?: string;
     anthropic?: string;
@@ -17,6 +19,8 @@ const store = new Store<StoreSchema>({
     model: "gpt-4o",
     theme: 'dark',
     opacity: 1.0,
+    contentProtection: true,
+    taskbarIconHidden: false,
     apiKeys: {}
   },
   encryptionKey: "your-encryption-key"

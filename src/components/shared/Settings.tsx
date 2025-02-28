@@ -34,7 +34,7 @@ const HOTKEYS: Hotkey[] = [
   { key: 'screenshot', label: 'Screenshot', description: 'Take a screenshot', defaultValue: 'CommandOrControl+H' },
   { key: 'solve', label: 'Solve', description: 'Process screenshots', defaultValue: 'CommandOrControl+Enter' },
   { key: 'reset', label: 'Reset', description: 'Reset all settings', defaultValue: 'CommandOrControl+R' },
-  { key: 'hideApp', label: 'Hide App', description: 'Toggle window visibility', defaultValue: 'CommandOrControl+B' }
+  { key: 'hideApp', label: 'Toggle Window', description: 'Toggle window visibility', defaultValue: 'CommandOrControl+B' }
 ]
 
 export const Settings: React.FC<SettingsProps> = ({
@@ -62,6 +62,223 @@ export const Settings: React.FC<SettingsProps> = ({
   const [isAppearanceOpen, setIsAppearanceOpen] = useState(false)
   const [isHotkeysOpen, setIsHotkeysOpen] = useState(false)
   const [hotkeys, setHotkeys] = useState<Record<string, string>>({})
+  const [editingHotkey, setEditingHotkey] = useState<string | null>(null)
+  const [tempHotkeyValue, setTempHotkeyValue] = useState<string>("")
+  const [activeModifiers, setActiveModifiers] = useState<string[]>([])
+  const [nonModifierKey, setNonModifierKey] = useState<string>("")
+
+  // Helper function to convert a key to its symbol representation
+  const formatKeySymbol = (key: string): string => {
+    const isMac = navigator.platform.toUpperCase().indexOf('MAC') >= 0;
+    let symbol = key;
+    
+    // Convert common keys to symbols
+    switch (key.toLowerCase()) {
+      case 'commandorcontrol':
+        symbol = isMac ? '⌘' : 'Ctrl';
+        break;
+      case 'command':
+      case 'cmd':
+        symbol = '⌘';
+        break;
+      case 'control':
+      case 'ctrl':
+        symbol = 'Ctrl';
+        break;
+      case 'alt':
+      case 'option':
+        symbol = isMac ? '⌥' : 'Alt';
+        break;
+      case 'shift':
+        symbol = '⇧';
+        break;
+      case 'up':
+        symbol = '↑';
+        break;
+      case 'down':
+        symbol = '↓';
+        break;
+      case 'left':
+        symbol = '←';
+        break;
+      case 'right':
+        symbol = '→';
+        break;
+      case 'enter':
+        symbol = '↵';
+        break;
+      case 'backspace':
+        symbol = '⌫';
+        break;
+      case 'delete':
+        symbol = '⌦';
+        break;
+      case 'escape':
+      case 'esc':
+        symbol = 'Esc';
+        break;
+      case 'space':
+        symbol = 'Space';
+        break;
+      case 'tab':
+        symbol = '⇥';
+        break;
+      case 'capslock':
+        symbol = '⇪';
+        break;
+      case 'meta':
+        symbol = '⌘';
+        break;
+      default:
+        // For single letters, just use uppercase
+        if (key.length === 1) {
+          symbol = key.toUpperCase();
+        }
+    }
+    
+    return symbol;
+  };
+
+  // Function to convert keyboard shortcut text to symbols
+  const formatHotkeyToSymbols = (shortcut: string): React.ReactNode => {
+    if (!shortcut) return null;
+    
+    const parts = shortcut.split('+').map(part => part.trim());
+    
+    return (
+      <span className="flex items-center gap-1">
+        {parts.map((part, index) => (
+          <React.Fragment key={index}>
+            <span className="bg-white/10 rounded-md px-1.5 py-1 text-[11px] leading-none text-white/70 cursor-default">
+              {formatKeySymbol(part)}
+            </span>
+          </React.Fragment>
+        ))}
+      </span>
+    );
+  };
+
+  const handleKeyDown = (e: React.KeyboardEvent) => {
+    if (!editingHotkey) return;
+    
+    e.preventDefault();
+    
+    // Get the main key (non-modifier)
+    let key = e.key;
+    
+    // Map some special keys to their Electron accelerator names
+    if (key === ' ') key = 'Space';
+    else if (key === 'ArrowUp') key = 'Up';
+    else if (key === 'ArrowDown') key = 'Down';
+    else if (key === 'ArrowLeft') key = 'Left';
+    else if (key === 'ArrowRight') key = 'Right';
+    else if (key === 'Escape') key = 'Esc';
+    else if (key === 'Control') key = 'Ctrl';
+    else if (key === 'Meta') key = 'Command';
+    else if (key.length === 1) key = key.toUpperCase(); // Capitalize single character keys
+    
+    // Skip if it's just a modifier key press
+    if (['Control', 'Alt', 'Shift', 'Meta', 'Command', 'Ctrl'].includes(key)) {
+      // Build array of currently pressed modifiers
+      const modifiers = [];
+      if (e.ctrlKey) modifiers.push('Ctrl');
+      if (e.metaKey) modifiers.push('Command');
+      if (e.altKey) modifiers.push('Alt');
+      if (e.shiftKey) modifiers.push('Shift');
+      
+      setActiveModifiers(modifiers);
+      return;
+    }
+    
+    // Build array of currently pressed modifiers for non-modifier keys
+    const modifiers = [];
+    if (e.ctrlKey && e.metaKey) {
+      modifiers.push('CommandOrControl');
+    } else {
+      if (e.ctrlKey) modifiers.push('Ctrl');
+      if (e.metaKey) modifiers.push('Command');
+    }
+    if (e.altKey) modifiers.push('Alt');
+    if (e.shiftKey) modifiers.push('Shift');
+    
+    setActiveModifiers(modifiers);
+    setNonModifierKey(key);
+    
+    // Create the full hotkey string in Electron accelerator format
+    let hotkeyValue = '';
+    if (modifiers.length > 0) {
+      hotkeyValue = modifiers.join('+');
+      if (key) {
+        hotkeyValue += `+${key}`;
+      }
+    } else if (key) {
+      hotkeyValue = key;
+    }
+    
+    setTempHotkeyValue(hotkeyValue);
+    
+    // Auto-save immediately when a valid hotkey (modifier + key) is entered
+    if (modifiers.length > 0 && key) {
+      // Check if this hotkey is already in use by another action
+      const conflictingHotkeyKey = Object.entries(hotkeys).find(
+        ([existingKey, existingValue]) => existingValue === hotkeyValue && existingKey !== editingHotkey
+      )?.[0];
+      
+      if (conflictingHotkeyKey) {
+        // Find the label for the conflicting hotkey
+        const conflictingHotkey = HOTKEYS.find(h => h.key === conflictingHotkeyKey);
+        const conflictingLabel = conflictingHotkey ? conflictingHotkey.label : conflictingHotkeyKey;
+        
+        // Show error toast
+        showToast(
+          'Hotkey Conflict', 
+          `This key combination is already used for "${conflictingLabel}". Please try a different combination.`, 
+          'error'
+        );
+        
+        // Keep editing mode open
+        return;
+      }
+      
+      // If no conflict, save the hotkey
+      handleHotkeyChange(editingHotkey, hotkeyValue);
+      setEditingHotkey(null);
+      setActiveModifiers([]);
+      setNonModifierKey("");
+    }
+  };
+
+  const startEditingHotkey = (key: string, defaultValue: string) => {
+    setEditingHotkey(key);
+    setTempHotkeyValue("");
+    setActiveModifiers([]);
+    setNonModifierKey("");
+    
+    // Use setTimeout to ensure the element is rendered before focusing
+    setTimeout(() => {
+      const element = document.getElementById(`hotkey-edit-${key}`);
+      if (element) {
+        element.focus();
+      }
+    }, 50);
+  };
+
+  const cancelEditingHotkey = () => {
+    setEditingHotkey(null);
+    setTempHotkeyValue("");
+    setActiveModifiers([]);
+    setNonModifierKey("");
+  };
+
+  const saveHotkey = (key: string) => {
+    if (tempHotkeyValue) {
+      handleHotkeyChange(key, tempHotkeyValue);
+    }
+    setEditingHotkey(null);
+    setTempHotkeyValue("");
+    setActiveModifiers([]);
+    setNonModifierKey("");
+  };
 
   useEffect(() => {
     loadApiKeys()
@@ -70,6 +287,7 @@ export const Settings: React.FC<SettingsProps> = ({
     loadAppVersion()
     loadElectronVersion()
     loadContentProtection()
+    loadTaskbarIcon()
     loadHotkeys()
   }, [])
 
@@ -124,6 +342,15 @@ export const Settings: React.FC<SettingsProps> = ({
       setIsContentProtectionEnabled(enabled)
     } catch (error) {
       console.error('Failed to load content protection setting:', error)
+    }
+  }
+
+  const loadTaskbarIcon = async () => {
+    try {
+      const hidden = await window.electronAPI.getTaskbarIcon()
+      setIsTaskbarIconHidden(hidden)
+    } catch (error) {
+      console.error('Failed to load taskbar icon setting:', error)
     }
   }
 
@@ -202,6 +429,21 @@ export const Settings: React.FC<SettingsProps> = ({
     setHotkeys(prev => ({ ...prev, [key]: value }))
   }
 
+  const handleTaskbarIconToggle = async () => {
+    if (isLocked) return
+    try {
+      const newState = !isTaskbarIconHidden
+      const result = await window.electronAPI.setTaskbarIcon(newState)
+      if (result.success) {
+        setIsTaskbarIconHidden(newState)
+      } else {
+        console.error('Failed to toggle taskbar icon:', result.error)
+      }
+    } catch (error) {
+      console.error('Failed to toggle taskbar icon:', error)
+    }
+  }
+
   return (
     <div className={`space-y-4 overflow-hidden ${isLocked ? 'opacity-50' : ''}`}>
       {/* API Keys Section */}
@@ -219,10 +461,10 @@ export const Settings: React.FC<SettingsProps> = ({
           </button>
           <div className={`space-y-2 overflow-hidden transition-all duration-200 ${isApiKeysOpen ? 'max-h-[500px] opacity-100' : 'max-h-0 opacity-0'}`}>
             {[
-              { key: 'openai', label: 'OpenAI API' },
-              { key: 'anthropic', label: 'Anthropic API' },
-              { key: 'google', label: 'Gemini API' },
-              { key: 'deepseek', label: 'DeepSeek API' }
+              { key: 'openai', label: 'OpenAI API Key' },
+              { key: 'anthropic', label: 'Anthropic API Key' },
+              { key: 'google', label: 'Google API Key' },
+              { key: 'deepseek', label: 'DeepSeek API Key' }
             ].map(({ key, label }) => (
               <div key={key} className="flex items-center gap-2">
                 <div className="relative flex-1">
@@ -236,9 +478,9 @@ export const Settings: React.FC<SettingsProps> = ({
                   />
                   <label
                     htmlFor={`${key}-api-key`}
-                    className="absolute left-2 top-0.5 text-[10px] leading-relaxed text-white/70 transition-all 
+                    className="absolute left-2 top-0.5 text-[7px] leading-relaxed text-white/70 transition-all 
                              peer-placeholder-shown:text-[11px] peer-placeholder-shown:text-white/50 peer-placeholder-shown:top-[7px]
-                             peer-focus:top-0.5 peer-focus:text-[10px] peer-focus:text-white/70"
+                             peer-focus:top-0.5 peer-focus:text-[7px] peer-focus:text-white/70"
                   >
                     {label}
                   </label>
@@ -265,7 +507,23 @@ export const Settings: React.FC<SettingsProps> = ({
             onClick={() => !isLocked && setIsHotkeysOpen(!isHotkeysOpen)}
             className={`w-full flex items-center justify-between text-[11px] leading-none text-white/90 hover:text-white transition-colors select-none cursor-default ${isLocked ? 'pointer-events-none' : ''}`}
           >
-            <span className="select-none cursor-default">Configure Hotkeys</span>
+            <div className="flex items-center gap-2">
+              <span className="select-none cursor-default">Configure Hotkeys</span>
+              <div className="relative group">
+                <div className="w-4 h-4 flex items-center justify-center text-white/50 hover:text-white/90 transition-colors cursor-default">
+                  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="w-3.5 h-3.5">
+                    <circle cx="12" cy="12" r="10"/>
+                    <path d="M12 16v-4"/>
+                    <path d="M12 8h.01"/>
+                  </svg>
+                </div>
+                <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 w-64 max-w-[15rem] opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none">
+                  <div className="bg-black/90 text-white/90 text-[10px] whitespace-nowrap leading-relaxed p-2 rounded-md shadow-lg">
+                    A valid hotkey is a combination of a modifier key and a key.
+                  </div>
+                </div>
+              </div>
+            </div>
             <span className={`transform transition-transform duration-200 select-none cursor-default ${isHotkeysOpen ? 'rotate-180' : ''}`}>
               ▼
             </span>
@@ -274,46 +532,79 @@ export const Settings: React.FC<SettingsProps> = ({
             {HOTKEYS.map(({ key, label, description, defaultValue }) => (
               <div key={key} className="flex items-center gap-2">
                 <div className="relative flex-1">
-                  <input
-                    type="text"
-                    id={`hotkey-${key}`}
-                    placeholder=" "
-                    value={hotkeys[key] || defaultValue}
-                    onChange={(e) => handleHotkeyChange(key, e.target.value)}
-                    className="w-full bg-white/10 rounded px-2 pt-3 pb-1 text-[11px] leading-none outline-none border border-white/10 focus:border-white/20 transition-colors peer placeholder-transparent"
-                  />
-                  <label
-                    htmlFor={`hotkey-${key}`}
-                    className="absolute left-2 top-0.5 text-[10px] leading-relaxed text-white/70 transition-all 
-                             peer-placeholder-shown:text-[11px] peer-placeholder-shown:text-white/50 peer-placeholder-shown:top-[7px]
-                             peer-focus:top-0.5 peer-focus:text-[10px] peer-focus:text-white/70"
-                  >
-                    {label}
-                  </label>
-                  <div className="absolute right-2 top-1/2 -translate-y-1/2">
-                    <div className="relative group">
-                      <div className="w-4 h-4 flex items-center justify-center text-white/50 hover:text-white/90 transition-colors cursor-default">
-                        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="w-3.5 h-3.5">
-                          <circle cx="12" cy="12" r="10"/>
-                          <path d="M12 16v-4"/>
-                          <path d="M12 8h.01"/>
-                        </svg>
+                  {editingHotkey === key ? (
+                    <div 
+                      id={`hotkey-edit-${key}`}
+                      className="w-full bg-yellow-500/20 rounded px-2 pt-3 pb-1 text-[11px] leading-none outline-none border border-yellow-500/30 transition-colors flex items-center min-h-[30px]"
+                      tabIndex={0}
+                      onKeyDown={handleKeyDown}
+                      autoFocus
+                    >
+                      {activeModifiers.length > 0 || nonModifierKey ? (
+                        <span className="flex items-center gap-1">
+                          {activeModifiers.map((mod, index) => (
+                            <span key={index} className="bg-white/10 rounded-md px-1.5 py-1 text-[11px] leading-none text-white/70 cursor-default">
+                              {formatKeySymbol(mod)}
+                            </span>
+                          ))}
+                          {nonModifierKey && (
+                            <span className="bg-white/10 rounded-md px-1.5 py-1 text-[11px] leading-none text-white/70 cursor-default">
+                              {formatKeySymbol(nonModifierKey)}
+                            </span>
+                          )}
+                        </span>
+                      ) : (
+                        <span className="text-yellow-300">Press keys for {label}...</span>
+                      )}
+                      <div className="absolute right-2 top-1/2 -translate-y-1/2 flex items-center gap-2">
+                        {tempHotkeyValue && (
+                          <button
+                            onClick={() => saveHotkey(key)}
+                            className="text-white/70 hover:text-white/90 transition-colors"
+                          >
+                            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="w-3.5 h-3.5">
+                              <polyline points="20 6 9 17 4 12"></polyline>
+                            </svg>
+                          </button>
+                        )}
                       </div>
-                      <div className="absolute bottom-full right-0 mb-2 w-48 opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none">
-                        <div className="bg-black/90 text-white/90 text-[10px] leading-relaxed p-2 rounded-md shadow-lg">
-                          {description}
-                          <div className="mt-1 text-white/50">Default: {defaultValue}</div>
+                    </div>
+                  ) : (
+                    <div 
+                      className="w-full bg-white/10 rounded px-2 pt-3 pb-1 text-[11px] leading-none outline-none border border-white/10 hover:border-white/20 transition-colors flex items-center min-h-[30px]"
+                    >
+                      {formatHotkeyToSymbols(hotkeys[key] || defaultValue)}
+                      <div className="absolute right-2 top-1/2 -translate-y-1/2">
+                        <div className="w-4 h-4 flex items-center justify-center text-white/50 hover:text-white/90 transition-colors cursor-default">
+                          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="w-3.5 h-3.5" onClick={() => startEditingHotkey(key, defaultValue)}>
+                            <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"></path>
+                          </svg>
                         </div>
                       </div>
                     </div>
-                  </div>
+                  )}
+                  <label
+                    htmlFor={`hotkey-${key}`}
+                    className="absolute left-2 top-0.5 text-[7px] leading-relaxed text-white/70"
+                  >
+                    {label}
+                  </label>
                 </div>
-                <button
-                  onClick={() => handleHotkeyChange(key, defaultValue)}
-                  className="text-white/50 hover:text-white/90 transition-colors select-none cursor-default px-1"
-                >
-                  ↺
-                </button>
+                {editingHotkey === key ? (
+                  <button
+                    onClick={cancelEditingHotkey}
+                    className="text-white/50 hover:text-white/90 transition-colors select-none cursor-default px-1"
+                  >
+                    ✕
+                  </button>
+                ) : (
+                  <button
+                    onClick={() => handleHotkeyChange(key, defaultValue)}
+                    className="text-white/50 hover:text-white/90 transition-colors select-none cursor-default px-1"
+                  >
+                    ↺
+                  </button>
+                )}
               </div>
             ))}
           </div>
@@ -355,7 +646,26 @@ export const Settings: React.FC<SettingsProps> = ({
                   : 'bg-red-500/20 text-red-300 hover:bg-red-500/30'
               } ${isLocked ? 'opacity-50 pointer-events-none' : ''}`}
             >
-              {isContentProtectionEnabled ? 'Content Protection Enabled' : 'Content Protection Disabled'}
+              <div className="relative w-full flex items-center justify-center">
+                <span>{isContentProtectionEnabled ? 'Content Protection Enabled' : 'Content Protection Disabled'}</span>
+                <div className="absolute right-0 top-1/2 -translate-y-1/2">
+                  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="w-3.5 h-3.5">
+                    {isContentProtectionEnabled ? (
+                      <>
+                        <path d="M9.88 9.88a3 3 0 1 0 4.24 4.24"></path>
+                        <path d="M10.73 5.08A10.43 10.43 0 0 1 12 5c7 0 10 7 10 7a13.16 13.16 0 0 1-1.67 2.68"></path>
+                        <path d="M6.61 6.61A13.526 13.526 0 0 0 2 12s3 7 10 7a9.74 9.74 0 0 0 5.39-1.61"></path>
+                        <line x1="2" x2="22" y1="2" y2="22"></line>
+                      </>
+                    ) : (
+                      <>
+                        <path d="M12 5c-7.33 0-10 7-10 7s2.67 7 10 7 10-7 10-7-2.67-7-10-7z"></path>
+                        <circle cx="12" cy="12" r="3"></circle>
+                      </>
+                    )}
+                  </svg>
+                </div>
+              </div>
             </button>
           </div>
 
@@ -371,8 +681,8 @@ export const Settings: React.FC<SettingsProps> = ({
                     <path d="M12 8h.01"/>
                   </svg>
                 </div>
-                <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 w-60 opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none z-50">
-                  <div className="bg-black/90 text-white/90 text-[10px] leading-relaxed p-2 rounded-md shadow-lg z-50">
+                <div className="absolute bottom-full right-[-150px] mb-2 w-60 opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none">
+                  <div className="bg-black/90 text-white/90 text-[10px] leading-relaxed p-2 rounded-md shadow-lg">
                     If you are required to share your full screen during an interview we recommend hiding the taskbar icon.
                   </div>
                 </div>
@@ -380,40 +690,34 @@ export const Settings: React.FC<SettingsProps> = ({
             </div>
             <div className="flex items-center justify-between">
               <button
-                onClick={() => setIsTaskbarIconHidden(!isTaskbarIconHidden)}
-                className={`px-3 py-1.5 text-[11px] leading-none rounded-md transition-colors select-none cursor-default flex items-center gap-2 ${
+                onClick={handleTaskbarIconToggle}
+                disabled={isLocked}
+                className={`w-full px-3 py-1.5 text-[11px] leading-none rounded-md transition-colors select-none ${
                   isTaskbarIconHidden 
-                    ? 'bg-neutral-500/20 text-neutral-300 hover:bg-neutral-500/30' 
-                    : 'bg-blue-500/20 text-blue-300 hover:bg-blue-500/30'
-                }`}
+                    ? 'bg-green-500/20 text-green-300 hover:bg-green-500/30' 
+                    : 'bg-red-500/20 text-red-300 hover:bg-red-500/30'
+                } ${isLocked ? 'opacity-50 pointer-events-none' : ''}`}
               >
-                <span className="flex-1">
-                  {isTaskbarIconHidden ? 'Show Taskbar Icon' : 'Hide Taskbar Icon'}
-                </span>
-                <svg
-                  xmlns="http://www.w3.org/2000/svg"
-                  viewBox="0 0 24 24"
-                  fill="none"
-                  stroke="currentColor"
-                  strokeWidth="2"
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                  className="w-3 h-3"
-                >
-                  {isTaskbarIconHidden ? (
-                    <>
-                      <path d="M2 12s3-7 10-7 10 7 10 7-3 7-10 7-10-7-10-7Z" />
-                      <circle cx="12" cy="12" r="3" />
-                    </>
-                  ) : (
-                    <>
-                      <path d="M9.88 9.88a3 3 0 1 0 4.24 4.24" />
-                      <path d="M10.73 5.08A10.43 10.43 0 0 1 12 5c7 0 10 7 10 7a13.16 13.16 0 0 1-1.67 2.68" />
-                      <path d="M6.61 6.61A13.526 13.526 0 0 0 2 12s3 7 10 7a9.74 9.74 0 0 0 5.39-1.61" />
-                      <line x1="2" y1="2" x2="22" y2="22" />
-                    </>
-                  )}
-                </svg>
+                <div className="relative w-full flex items-center justify-center">
+                  <span>{isTaskbarIconHidden ? 'Taskbar Icon Hidden' : 'Taskbar Icon Visible'}</span>
+                  <div className="absolute right-0 top-1/2 -translate-y-1/2">
+                    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="w-3.5 h-3.5">
+                      {isTaskbarIconHidden ? (
+                        <>
+                          <path d="M9.88 9.88a3 3 0 1 0 4.24 4.24"></path>
+                          <path d="M10.73 5.08A10.43 10.43 0 0 1 12 5c7 0 10 7 10 7a13.16 13.16 0 0 1-1.67 2.68"></path>
+                          <path d="M6.61 6.61A13.526 13.526 0 0 0 2 12s3 7 10 7a9.74 9.74 0 0 0 5.39-1.61"></path>
+                          <line x1="2" x2="22" y1="2" y2="22"></line>
+                        </>
+                      ) : (
+                        <>
+                          <path d="M12 5c-7.33 0-10 7-10 7s2.67 7 10 7 10-7 10-7-2.67-7-10-7z"></path>
+                          <circle cx="12" cy="12" r="3"></circle>
+                        </>
+                      )}
+                    </svg>
+                  </div>
+                </div>
               </button>
             </div>
           </div>
@@ -428,7 +732,23 @@ export const Settings: React.FC<SettingsProps> = ({
         <h3 className="font-medium">Appearance</h3>
         <div className="px-2 space-y-4">
           <div className="space-y-2">
-            <label className="text-[11px] leading-none text-white/90">Theme</label>
+            <div className="flex items-center gap-2">
+              <label className="text-[11px] leading-none text-white/90">Theme</label>
+              <div className="relative group">
+                <div className="w-4 h-4 flex items-center justify-center text-white/50 hover:text-white/90 transition-colors cursor-default">
+                  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="w-3.5 h-3.5">
+                    <circle cx="12" cy="12" r="10"/>
+                    <path d="M12 16v-4"/>
+                    <path d="M12 8h.01"/>
+                  </svg>
+                </div>
+                <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 w-auto opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none">
+                  <div className="bg-black/90 text-white/90 text-[10px] whitespace-nowrap leading-relaxed p-2 rounded-md shadow-lg">
+                    In development
+                  </div>
+                </div>
+              </div>
+            </div>
             <div className="flex items-center gap-2">
               <button
                 onClick={() => handleThemeChange('light')}
@@ -478,7 +798,7 @@ export const Settings: React.FC<SettingsProps> = ({
       {/* Preferences Section */}
       <div className="border-t border-white/10 pt-3 select-none space-y-3">
         <h3 className="font-medium">Preferences</h3>
-        <div>
+        <div className={isLocked ? 'pointer-events-none' : ''}>
           <LanguageSelector
             currentLanguage={currentLanguage}
             setLanguage={setLanguage}
