@@ -67,9 +67,12 @@ export interface ElectronAPI {
     anthropic?: string
     google?: string
     deepseek?: string
+    xai?: string
+    meta?: string
+    alibaba?: string
   }>
-  setApiKey: (provider: 'openai' | 'anthropic' | 'google' | 'deepseek', key: string) => Promise<void>
-  clearApiKey: (provider: 'openai' | 'anthropic' | 'google' | 'deepseek') => Promise<void>
+  setApiKey: (provider: 'openai' | 'anthropic' | 'google' | 'deepseek' | 'xai' | 'meta' | 'alibaba', key: string) => Promise<void>
+  clearApiKey: (provider: 'openai' | 'anthropic' | 'google' | 'deepseek' | 'xai' | 'meta' | 'alibaba') => Promise<void>
 
   // Add this to the ElectronAPI interface
   getAppVersion: () => Promise<string>

@@ -108,7 +108,7 @@ const SolutionCommands: React.FC<SolutionCommandsProps> = ({
               >
                 <span className="text-[11px] leading-none truncate cursor-default">
                   {extraScreenshots.length === 0
-                    ? "Screenshot your code"
+                    ? "Screenshot again"
                     : "Screenshot"}
                 </span>
                 <div className="flex gap-1">

@@ -1,68 +1,102 @@
 import React from "react"
+import { CustomDropdown } from "./CustomDropdown"
+
+// Define window global variable
+declare global {
+  interface Window {
+    __LANGUAGE__: string;
+  }
+}
 
 interface LanguageSelectorProps {
-  currentLanguage: string
-  setLanguage: (language: string) => void
+  currentLanguage: string;
+  setLanguage: (language: string) => void;
 }
+
+// Language options grouped by category
+const languageOptions = [
+  {
+    label: "General Purpose",
+    options: [
+      { value: "python", label: "Python" },
+      { value: "javascript", label: "JavaScript" },
+      { value: "typescript", label: "TypeScript" },
+      { value: "c", label: "C" },
+      { value: "cpp", label: "C++" },
+      { value: "csharp", label: "C#" },
+      { value: "java", label: "Java" },
+      { value: "go", label: "Go" },
+      { value: "ruby", label: "Ruby" },
+      { value: "rust", label: "Rust" },
+      { value: "swift", label: "Swift" },
+      { value: "php", label: "PHP" },
+      { value: "kotlin", label: "Kotlin" },
+      { value: "scala", label: "Scala" },
+    ]
+  },
+  // {
+  //   label: "Functional",
+  //   options: [
+  //     { value: "haskell", label: "Haskell" },
+  //     { value: "elixir", label: "Elixir" },
+  //   ]
+  // },
+  // {
+  //   label: "Database",
+  //   options: [
+  //     { value: "sql", label: "SQL" },
+  //     { value: "mysql", label: "MySQL" },
+  //     { value: "postgresql", label: "PostgreSQL" },
+  //     { value: "sqlite", label: "SQLite" },
+  //     { value: "mongodb", label: "MongoDB" },
+  //     { value: "redis", label: "Redis" },
+  //   ]
+  // },
+  // {
+  //   label: "Web Technologies",
+  //   options: [
+  //     { value: "html", label: "HTML" },
+  //     { value: "css", label: "CSS" },
+  //     { value: "react", label: "React" },
+  //     { value: "vue", label: "Vue" },
+  //     { value: "angular", label: "Angular" },
+  //     { value: "svelte", label: "Svelte" },
+  //     { value: "nextjs", label: "Next.js" },
+  //     { value: "graphql", label: "GraphQL" },
+  //     { value: "vanilla-js", label: "Vanilla JS" },
+  //   ]
+  // },
+  // {
+  //   label: "Scripting & Tools",
+  //   options: [
+  //     { value: "bash", label: "Bash" },
+  //     { value: "powershell", label: "PowerShell" },
+  //     { value: "yaml", label: "YAML" },
+  //     { value: "json", label: "JSON" },
+  //     { value: "markdown", label: "Markdown" },
+  //   ]
+  // }
+];
 
 export const LanguageSelector: React.FC<LanguageSelectorProps> = ({
   currentLanguage,
   setLanguage
 }) => {
-  const handleLanguageChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
-    const newLanguage = e.target.value
-    window.__LANGUAGE__ = newLanguage
-    setLanguage(newLanguage)
+  const handleLanguageChange = (newLanguage: string) => {
+    window.__LANGUAGE__ = newLanguage;
+    setLanguage(newLanguage);
   }
 
   return (
-    <div className="mb-3 px-2 space-y-1">
-      <div className="flex items-center justify-between">
-        <span className="text-[11px] leading-none text-white/90">Programming Language</span>
-        <select
-          value={currentLanguage}
-          onChange={handleLanguageChange}
-          className="bg-white/10 rounded px-2 py-1 text-[11px] leading-none outline-none border border-white/10 focus:border-white/20"
-        >
-          <optgroup label="General Purpose">
-            <option value="python">Python</option>
-            <option value="python3">Python3</option>
-            <option value="java">Java</option>
-            <option value="cpp">C++</option>
-            <option value="c">C</option>
-            <option value="csharp">C#</option>
-            <option value="javascript">JavaScript</option>
-            <option value="typescript">TypeScript</option>
-            <option value="ruby">Ruby</option>
-            <option value="go">Go</option>
-            <option value="rust">Rust</option>
-            <option value="swift">Swift</option>
-            <option value="kotlin">Kotlin</option>
-            <option value="scala">Scala</option>
-            <option value="php">PHP</option>
-            <option value="dart">Dart</option>
-          </optgroup>
-          <optgroup label="Functional">
-            <option value="racket">Racket</option>
-            <option value="erlang">Erlang</option>
-            <option value="elixir">Elixir</option>
-          </optgroup>
-          <optgroup label="Database">
-            <option value="mysql">MySQL</option>
-            <option value="mssql">MS SQL Server</option>
-            <option value="oracle">Oracle SQL</option>
-            <option value="postgresql">PostgreSQL</option>
-          </optgroup>
-          <optgroup label="Web Technologies">
-            <option value="vanillajs">Vanilla JS</option>
-            <option value="react">React</option>
-          </optgroup>
-          <optgroup label="Scripting & Tools">
-            <option value="bash">Bash</option>
-            <option value="pandas">Pandas</option>
-          </optgroup>
-        </select>
-      </div>
+    <div className="flex items-center justify-between mb-3 px-2 space-y-1">
+      <span className="text-[11px] leading-none text-white/90">Language</span>
+      <CustomDropdown
+        value={currentLanguage}
+        onChange={handleLanguageChange}
+        options={languageOptions}
+        className="min-w-[160px]"
+        placeholder="Select a language"
+      />
     </div>
   )
 }

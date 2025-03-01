@@ -329,7 +329,7 @@ export function initializeIpcHandlers(deps: IIpcHandlerDeps): void {
     return store.get('apiKeys')
   })
 
-  type ApiProvider = 'openai' | 'anthropic' | 'google' | 'deepseek'
+  type ApiProvider = 'openai' | 'anthropic' | 'google' | 'deepseek' | 'xai' | 'meta' | 'alibaba'
 
   ipcMain.handle('set-api-key', (_event, { provider, key }: { provider: ApiProvider; key: string }) => {
     const apiKeys = store.get('apiKeys')

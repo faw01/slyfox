@@ -17,6 +17,9 @@ interface ApiKeys {
   anthropic?: string
   google?: string
   deepseek?: string
+  xai?: string
+  meta?: string
+  alibaba?: string
 }
 
 interface Hotkey {
@@ -464,10 +467,12 @@ export const Settings: React.FC<SettingsProps> = ({
               { key: 'openai', label: 'OpenAI API Key' },
               { key: 'anthropic', label: 'Anthropic API Key' },
               { key: 'google', label: 'Google API Key' },
-              { key: 'deepseek', label: 'DeepSeek API Key' }
+              { key: 'deepseek', label: 'DeepSeek API Key' },
+              { key: 'xai', label: 'xAI API Key' },
+              { key: 'alibaba', label: 'Alibaba API Key' }
             ].map(({ key, label }) => (
               <div key={key} className="flex items-center gap-2">
-                <div className="relative flex-1">
+                <div className="relative flex-1 group">
                   <input
                     type="password"
                     id={`${key}-api-key`}
@@ -518,7 +523,7 @@ export const Settings: React.FC<SettingsProps> = ({
                   </svg>
                 </div>
                 <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 w-64 max-w-[15rem] opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none">
-                  <div className="bg-black/90 text-white/90 text-[10px] whitespace-nowrap leading-relaxed p-2 rounded-md shadow-lg">
+                  <div className="bg-black/90 text-white/90 text-[10px] leading-relaxed p-2 rounded-md shadow-lg">
                     A valid hotkey is a combination of a modifier key and a key.
                   </div>
                 </div>
@@ -744,7 +749,7 @@ export const Settings: React.FC<SettingsProps> = ({
                 </div>
                 <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 w-auto opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none">
                   <div className="bg-black/90 text-white/90 text-[10px] whitespace-nowrap leading-relaxed p-2 rounded-md shadow-lg">
-                    In development
+                    Broken
                   </div>
                 </div>
               </div>
@@ -808,8 +813,8 @@ export const Settings: React.FC<SettingsProps> = ({
             setModel={setModel}
           />
           <VisionModelSelector
-            currentModel={currentVisionModel}
-            setModel={setCurrentVisionModel}
+            currentVisionModel={currentVisionModel}
+            setVisionModel={setCurrentVisionModel}
           />
         </div>
       </div>

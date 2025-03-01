@@ -796,32 +796,35 @@ export class AIModelManager {
       throw new Error("xAI API key not initialized")
     }
 
-    const response = await axios.post(
-      'https://api.groq.com/openai/v1/chat/completions',
-      {
-        model: model.modelId,
-        messages: messages.map(m => ({
-          role: m.role,
-          content: typeof m.content === 'string' ? m.content : JSON.stringify(m.content)
-        })),
-        max_tokens: model.maxTokens,
-      },
-      {
-        headers: {
-          'Authorization': `Bearer ${this.xaiApiKey}`,
-          'Content-Type': 'application/json',
-        },
-        signal: options.signal
-      }
-    )
+    // Create a temporary OpenAI client with xAI base URL
+    const xaiClient = new OpenAI({
+      apiKey: this.xaiApiKey,
+      baseURL: 'https://api.x.ai/v1'
+    });
 
-    if (!response.data.choices?.[0]?.message?.content) {
+    const typedMessages = messages.map(msg => ({
+      role: msg.role as "system" | "user" | "assistant",
+      content: typeof msg.content === 'string' ? msg.content : JSON.stringify(msg.content)
+    }));
+
+    const requestOptions: OpenAI.Chat.ChatCompletionCreateParams = {
+      model: model.modelId,
+      messages: typedMessages,
+      max_tokens: model.maxTokens
+    };
+
+    const response = await xaiClient.chat.completions.create(
+      requestOptions,
+      { signal: options.signal }
+    ) as ChatCompletion;
+
+    if (!response.choices?.[0]?.message?.content) {
       throw new Error("Empty response from xAI API")
     }
 
     return {
-      content: response.data.choices[0].message.content,
-      _request_id: response.data.id
+      content: response.choices[0].message.content,
+      _request_id: response.id
     }
   }
 
