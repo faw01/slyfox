@@ -382,8 +382,8 @@ export class ProcessingHelper {
         throw new Error("No problem info available")
       }
 
-      // Use centralized prompt configuration instead of hardcoded messages
-      const messages = createSolutionGenerationMessages(problemInfo)
+      // Use centralized prompt configuration and pass the language
+      const messages = createSolutionGenerationMessages(problemInfo, language)
 
       const response = await this.aiManager.generateCompletion(
         model,

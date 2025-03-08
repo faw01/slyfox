@@ -1,5 +1,5 @@
 console.log("Preload script starting...")
-import { contextBridge, ipcRenderer } from "electron"
+import { contextBridge, ipcRenderer, DesktopCapturerSource } from "electron"
 const { shell } = require("electron")
 
 // Types for the exposed Electron API
@@ -67,6 +67,27 @@ interface ElectronAPI {
   getTaskbarIcon: () => Promise<boolean>
   setTaskbarIcon: (hidden: boolean) => Promise<{ success: boolean; error?: string }>
   getPlatform: () => string
+  getSystemAudioSources: () => Promise<Array<{
+    id: string
+    name: string
+    thumbnailURL?: string
+    type: 'screen' | 'window' | 'audio' | 'unknown'
+  }>>
+  getApplicationSources: () => Promise<{
+    id: string;
+    name: string;
+    thumbnailURL: string;
+    appIcon?: string;
+  }[]>;
+  getScreenSources: () => Promise<{
+    id: string;
+    name: string;
+    thumbnailURL: string;
+    type: 'screen';
+  }[]>;
+  saveTempAudio: (audioBlob: Blob) => Promise<string>
+  runWhisperCLI: (filePath: string, modelName: string) => Promise<void>
+  cleanupTempFile: (filePath: string) => Promise<void>
 }
 
 export const PROCESSING_EVENTS = {
@@ -283,7 +304,53 @@ const electronAPI = {
   getTaskbarIcon: () => ipcRenderer.invoke('get-taskbar-icon'),
   setTaskbarIcon: (hidden: boolean) => 
     ipcRenderer.invoke('set-taskbar-icon', hidden),
-  getPlatform: () => process.platform
+  getPlatform: () => process.platform,
+  getSystemAudioSources: async () => {
+    try {
+      console.log("Getting system audio sources...");
+      // Use IPC to get sources from the main process
+      const sources = await ipcRenderer.invoke('GET_SYSTEM_AUDIO_SOURCES');
+      console.log(`Found ${sources?.length || 0} system audio sources`);
+      return sources || [];
+    } catch (error) {
+      console.error('Error getting system audio sources:', error);
+      return [];
+    }
+  },
+  getApplicationSources: async () => {
+    try {
+      console.log("Getting application sources...");
+      // Use IPC to get sources from the main process
+      const sources = await ipcRenderer.invoke('GET_APPLICATION_SOURCES');
+      console.log(`Found ${sources?.length || 0} application sources`);
+      return sources || [];
+    } catch (error) {
+      console.error('Error getting application sources:', error);
+      return [];
+    }
+  },
+  
+  getScreenSources: async () => {
+    try {
+      console.log("Getting screen sources...");
+      // Use IPC to get sources from the main process
+      const sources = await ipcRenderer.invoke('GET_SCREEN_SOURCES');
+      console.log(`Found ${sources?.length || 0} screen sources`);
+      return sources || [];
+    } catch (error) {
+      console.error('Error getting screen sources:', error);
+      return [];
+    }
+  },
+  saveTempAudio: async (audioBlob: Blob) => {
+    const arrayBuffer = await audioBlob.arrayBuffer();
+    const uint8Array = new Uint8Array(arrayBuffer);
+    return ipcRenderer.invoke('save-temp-audio', uint8Array);
+  },
+  runWhisperCLI: (filePath: string, modelName: string) => 
+    ipcRenderer.invoke('run-whisper-cli', filePath, modelName),
+  cleanupTempFile: (filePath: string) => 
+    ipcRenderer.invoke('cleanup-temp-file', filePath)
 } as ElectronAPI
 
 // Before exposing the API
@@ -295,7 +362,12 @@ console.log(
 // Expose the API
 contextBridge.exposeInMainWorld("electronAPI", electronAPI)
 
-console.log("electronAPI exposed to window")
+// Expose environment variables safely to the renderer process
+contextBridge.exposeInMainWorld("ENV_REACT_APP_API_BASE_URL", process.env.REACT_APP_API_BASE_URL || '');
+contextBridge.exposeInMainWorld("OPENAI_API_KEY", process.env.OPENAI_API_KEY || '');
+contextBridge.exposeInMainWorld("OPENAI_API_URL", process.env.OPENAI_API_URL || 'https://api.openai.com/v1');
+
+console.log("electronAPI and environment variables exposed to window")
 
 // Add this focus restoration handler
 ipcRenderer.on("restore-focus", () => {

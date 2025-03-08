@@ -1,10 +1,15 @@
 // ipcHandlers.ts
 
-import { ipcMain, shell, app } from "electron"
+import { ipcMain, shell, app, desktopCapturer } from "electron"
 import { randomBytes } from "crypto"
 import { createClient } from '@supabase/supabase-js'
 import { store } from "./store"
 import { IIpcHandlerDeps } from "./main"
+import path from 'path';
+import fs from 'fs';
+import { exec, spawn } from 'child_process';
+import { promisify } from 'util';
+import os from 'os';
 
 export function initializeIpcHandlers(deps: IIpcHandlerDeps): void {
   console.log("Initializing IPC handlers")
@@ -343,6 +348,171 @@ export function initializeIpcHandlers(deps: IIpcHandlerDeps): void {
     store.set('apiKeys', newApiKeys)
   })
 
+  // Whisper CLI handlers
+  ipcMain.handle('save-temp-audio', async (_, audioData: Uint8Array) => {
+    try {
+      const tempDir = path.join(app.getPath('temp'), 'slyfox-whisper');
+      
+      // Create temp directory if it doesn't exist
+      if (!fs.existsSync(tempDir)) {
+        fs.mkdirSync(tempDir, { recursive: true });
+      }
+      
+      // Create a unique file name
+      const tempFilePath = path.join(tempDir, `recording-${Date.now()}.wav`);
+      
+      // Write audio data to file
+      fs.writeFileSync(tempFilePath, Buffer.from(audioData));
+      
+      console.log(`Saved audio chunk (${audioData.length} bytes) to temp file: ${tempFilePath}`);
+      return tempFilePath;
+    } catch (error) {
+      console.error('Error saving temp audio file:', error);
+      throw error;
+    }
+  });
+
+  ipcMain.handle('run-whisper-cli', async (_, filePath: string, modelName: string) => {
+    try {
+      // Check if the file exists
+      if (!fs.existsSync(filePath)) {
+        console.error(`Audio file not found: ${filePath}`);
+        return '';
+      }
+      
+      // The output directory will be the same as the input file
+      const outputDir = path.dirname(filePath);
+      const fileName = path.basename(filePath, path.extname(filePath));
+      const outputFilePath = path.join(outputDir, `${fileName}.txt`);
+      
+      // Remove previous output file if it exists
+      if (fs.existsSync(outputFilePath)) {
+        fs.unlinkSync(outputFilePath);
+      }
+
+      // Get user's home directory for model path
+      const homeDir = os.homedir();
+      const modelDir = path.join(homeDir, '.cache', 'whisper');
+      
+      // Construct whisper command and arguments
+      const whisperArgs = [
+        filePath,
+        '--model', modelName,
+        '--model_dir', modelDir,
+        '--language', 'en',
+        '--task', 'transcribe',
+        '--output_dir', outputDir,
+        '--output_format', 'txt',
+        '--no_speech_threshold', '0.3',
+        '--beam_size', '1',
+        '--threads', '4',
+        '--temperature', '0.0',
+        '--word_timestamps', 'True',
+        '--verbose', 'True'
+      ];
+      
+      console.log(`Executing whisper command with args:`, whisperArgs);
+      
+      // Set a timeout to prevent hanging on problematic audio chunks
+      const timeoutMs = 30000; // 30 seconds timeout
+      
+      let stdoutData = '';
+      let stderrData = '';
+      
+      try {
+        // Create a promise that will resolve when the process completes or reject on timeout
+        const processPromise = new Promise((resolve, reject) => {
+          const whisperProcess = spawn('whisper', whisperArgs, {
+            env: {
+              ...process.env,
+              PATH: process.env.PATH
+            }
+          });
+          
+          whisperProcess.stdout.on('data', (data: Buffer) => {
+            stdoutData += data.toString();
+            console.log(`Whisper stdout: ${data}`);
+          });
+          
+          whisperProcess.stderr.on('data', (data: Buffer) => {
+            stderrData += data.toString();
+            console.log(`Whisper stderr: ${data}`);
+          });
+          
+          whisperProcess.on('close', (code: number | null) => {
+            if (code === 0) {
+              resolve(true);
+            } else {
+              reject(new Error(`Process exited with code ${code}`));
+            }
+          });
+          
+          whisperProcess.on('error', (err: Error) => {
+            reject(err);
+          });
+        });
+        
+        // Race the process against the timeout
+        await Promise.race([
+          processPromise,
+          new Promise((_, reject) => setTimeout(() => reject(new Error(`Whisper CLI timed out after ${timeoutMs}ms`)), timeoutMs))
+        ]);
+        
+        // Check if output file was created
+        if (fs.existsSync(outputFilePath)) {
+          const transcription = fs.readFileSync(outputFilePath, 'utf-8').trim();
+          if (transcription) {
+            console.log(`Transcription result (${transcription.length} chars): ${transcription.substring(0, 40)}...`);
+            return transcription;
+          }
+        }
+        
+        console.warn('No transcription produced for this audio chunk');
+        return '';
+        
+      } catch (processError) {
+        console.error('Error during Whisper CLI execution:', processError);
+        console.error('Stdout:', stdoutData);
+        console.error('Stderr:', stderrData);
+        return '';
+      }
+      
+    } catch (error) {
+      console.error('Error running Whisper CLI:', error);
+      return '';
+      
+    } finally {
+      // Always try to clean up the input file, regardless of success or failure
+      try {
+        if (fs.existsSync(filePath)) {
+          fs.unlinkSync(filePath);
+          console.log(`Cleaned up input file: ${filePath}`);
+        }
+      } catch (cleanupError) {
+        console.error('Error cleaning up input file:', cleanupError);
+      }
+    }
+  });
+
+  ipcMain.handle('cleanup-temp-file', async (_, filePath: string) => {
+    try {
+      if (fs.existsSync(filePath)) {
+        fs.unlinkSync(filePath);
+        
+        // Also try to clean up the .txt file if it exists
+        const txtFile = filePath.replace(/\.[^/.]+$/, '.txt');
+        if (fs.existsSync(txtFile)) {
+          fs.unlinkSync(txtFile);
+        }
+        
+        console.log(`Cleaned up temp file: ${filePath}`);
+      }
+    } catch (error) {
+      console.error('Error cleaning up temp file:', error);
+      throw error;
+    }
+  });
+
   // Add this near the other handlers
   ipcMain.handle('get-app-version', () => {
     return app.getVersion()
@@ -448,4 +618,155 @@ export function initializeIpcHandlers(deps: IIpcHandlerDeps): void {
       return false
     }
   })
+
+  // Window listing handler
+  ipcMain.handle("get-application-windows", async () => {
+    try {
+      const { BrowserWindow } = require('electron');
+      
+      // Get all windows and filter for visible ones
+      const allWindows = BrowserWindow.getAllWindows().filter((win: Electron.BrowserWindow) => {
+        // Only include windows that are visible
+        return win.isVisible();
+      });
+      
+      // Map windows to a simplified structure with needed properties
+      const visibleWindows = allWindows.map((win: Electron.BrowserWindow) => {
+        const bounds = win.getBounds();
+        return {
+          id: win.id,
+          title: win.getTitle() || 'Unknown Window',
+          bounds: {
+            x: bounds.x,
+            y: bounds.y,
+            width: bounds.width,
+            height: bounds.height
+          },
+          // Include additional properties that might be useful
+          isMinimized: win.isMinimized(),
+          isMaximized: win.isMaximized(),
+          isFullScreen: win.isFullScreen()
+        };
+      });
+      
+      // If no windows found, return an empty array
+      return visibleWindows;
+    } catch (error) {
+      console.error("Error getting application windows:", error);
+      return [];
+    }
+  });
+
+  // Desktop Capturer Handlers
+  ipcMain.handle('GET_SYSTEM_AUDIO_SOURCES', async () => {
+    try {
+      console.log("Main process: Getting system audio sources...");
+      // Get screen sources
+      const screenSources = await desktopCapturer.getSources({
+        types: ['screen'],
+        thumbnailSize: { width: 320, height: 180 }
+      });
+      
+      // Get audio input devices including BlackHole
+      const audioDevices = await getAudioInputDevices();
+      
+      // Combine sources
+      const allSources = [
+        ...screenSources.map(source => ({
+          id: source.id,
+          name: source.name,
+          thumbnailURL: source.thumbnail.toDataURL(),
+          type: 'screen'
+        })),
+        ...audioDevices
+      ];
+      
+      console.log(`Main process: Found ${allSources.length} system audio sources (${screenSources.length} screens, ${audioDevices.length} audio devices)`);
+      return allSources;
+    } catch (error) {
+      console.error('Main process: Error getting system audio sources:', error);
+      return [];
+    }
+  });
+
+  // Get audio input devices
+  async function getAudioInputDevices() {
+    try {
+      console.log("Getting audio input devices...");
+      // On macOS, we need to use the systemPreferences API
+      if (process.platform === 'darwin') {
+        // Check if BlackHole is installed
+        const devices = [];
+        
+        try {
+          // Use execSync to run a command that lists audio devices
+          const { execSync } = require('child_process');
+          const audioDevicesOutput = execSync('system_profiler SPAudioDataType').toString();
+          
+          // Parse the output to find BlackHole
+          if (audioDevicesOutput.includes('BlackHole')) {
+            console.log("Found BlackHole audio device");
+            devices.push({
+              id: 'blackhole-audio-device',
+              name: 'BlackHole 2ch (System Audio)',
+              type: 'audio'
+            });
+          }
+        } catch (error) {
+          console.error("Error checking for BlackHole devices:", error);
+        }
+        
+        return devices;
+      }
+      
+      // For other platforms, return an empty array for now
+      // This could be extended in the future
+      return [];
+    } catch (error) {
+      console.error("Error getting audio input devices:", error);
+      return [];
+    }
+  }
+
+  ipcMain.handle('GET_APPLICATION_SOURCES', async () => {
+    try {
+      console.log("Main process: Getting application sources...");
+      const sources = await desktopCapturer.getSources({
+        types: ['window'],
+        thumbnailSize: { width: 320, height: 180 }
+      });
+      
+      console.log(`Main process: Found ${sources.length} application sources`);
+      return sources.map(source => ({
+        id: source.id,
+        name: source.name,
+        thumbnailURL: source.thumbnail.toDataURL(),
+        appIcon: source.appIcon?.toDataURL()
+      }));
+    } catch (error) {
+      console.error('Main process: Error getting application sources:', error);
+      return [];
+    }
+  });
+
+  ipcMain.handle('GET_SCREEN_SOURCES', async () => {
+    try {
+      console.log("Main process: Getting screen sources...");
+      const sources = await desktopCapturer.getSources({
+        types: ['screen'],
+        thumbnailSize: { width: 320, height: 180 }
+      });
+      
+      console.log(`Main process: Found ${sources.length} screen sources`);
+      return sources.map(source => ({
+        id: source.id,
+        name: source.name,
+        thumbnailURL: source.thumbnail.toDataURL(),
+        type: 'screen'
+      }));
+    } catch (error) {
+      console.error('Main process: Error getting screen sources:', error);
+      return [];
+    }
+  });
 }

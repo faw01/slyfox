@@ -5,6 +5,7 @@ import { LanguageSelector } from "../shared/LanguageSelector"
 import { ModelSelector } from "../shared/ModelSelector"
 import { Settings } from "../shared/Settings"
 import { COMMAND_KEY } from '../../utils/platform'
+import STTPanel from "../shared/STTPanel"
 
 interface QueueCommandsProps {
   onTooltipVisibilityChange: (visible: boolean, height: number) => void
@@ -29,6 +30,7 @@ const QueueCommands: React.FC<QueueCommandsProps> = ({
   const [appVersion, setAppVersion] = useState("")
   const [electronVersion, setElectronVersion] = useState("")
   const [isSettingsLocked, setIsSettingsLocked] = useState(true)
+  const [isSTTPanelOpen, setIsSTTPanelOpen] = useState(false)
   const tooltipRef = useRef<HTMLDivElement>(null)
   const { showToast } = useToast()
 
@@ -55,6 +57,13 @@ const QueueCommands: React.FC<QueueCommandsProps> = ({
     }
     onTooltipVisibilityChange(isTooltipVisible, tooltipHeight)
   }, [isTooltipVisible])
+
+  // Close settings tooltip when STT panel opens
+  useEffect(() => {
+    if (isSTTPanelOpen && isTooltipVisible) {
+      setIsTooltipVisible(false)
+    }
+  }, [isSTTPanelOpen])
 
   const handleToggleSettings = () => {
     setIsTooltipVisible(!isTooltipVisible)
@@ -150,6 +159,42 @@ const QueueCommands: React.FC<QueueCommandsProps> = ({
           {/* Separator */}
           <div className="mx-2 h-4 w-px bg-white/20" />
 
+          {/* Microphone icon for transcription */}
+          <div className="relative inline-block">
+            <div 
+              className="w-4 h-4 flex items-center justify-center text-white/70 hover:text-white/90 transition-colors cursor-pointer"
+              onClick={() => setIsSTTPanelOpen(!isSTTPanelOpen)}
+            >
+              <svg
+                xmlns="http://www.w3.org/2000/svg"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="2"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                className="w-3.5 h-3.5"
+              >
+                <path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z" />
+                <path d="M19 10v2a7 7 0 0 1-14 0v-2" />
+                <line x1="12" y1="19" x2="12" y2="23" />
+                <line x1="8" y1="23" x2="16" y2="23" />
+              </svg>
+            </div>
+            
+            {/* STT Panel */}
+            {isSTTPanelOpen && (
+              <STTPanel 
+                isOpen={isSTTPanelOpen}
+                onClose={() => setIsSTTPanelOpen(false)}
+                currentSTTModel={window.__STT_MODEL__ || 'whisper-1'}
+              />
+            )}
+          </div>
+
+          {/* Separator */}
+          <div className="mx-2 h-4 w-px bg-white/20" />
+
           {/* Settings with Tooltip */}
           <div className="relative inline-block">
             <div className="flex items-center gap-2">
@@ -214,7 +259,7 @@ const QueueCommands: React.FC<QueueCommandsProps> = ({
                 <div className="p-3 text-xs bg-black/80 backdrop-blur-md rounded-lg border border-white/10 text-white/90 shadow-lg">
                   <div className="space-y-4">
                     <div className="flex items-center justify-between">
-                      <h3 className="font-medium truncate">Keyboard Shortcuts</h3>
+                      <h3 className="font-medium truncate">Settings</h3>
                       <span className="text-[10px] leading-relaxed text-white/50">
                         electron v{electronVersion} | client v{appVersion}
                       </span>

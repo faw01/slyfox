@@ -212,7 +212,7 @@ export const allModels: AIModel[] = [
     isVisionModel: false
   },
   {
-    id: "o3-mini-low",
+    id: "o3-mini",
     name: "o3-mini (low)",
     description: "Quick | 1697 CF Elo.",
     provider: "openai",
@@ -222,7 +222,7 @@ export const allModels: AIModel[] = [
     isVisionModel: false
   },
   {
-    id: "o3-mini-medium",
+    id: "o3-mini",
     name: "o3-mini (medium)",
     description: "Balanced | 1997 CF Elo.",
     provider: "openai",
@@ -232,7 +232,7 @@ export const allModels: AIModel[] = [
     isVisionModel: false
   },
   {
-    id: "o3-mini-high",
+    id: "o3-mini",
     name: "o3-mini (high)",
     description: "Best | 2073 CF Elo.",
     provider: "openai",

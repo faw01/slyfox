@@ -21,6 +21,7 @@ declare global {
     __LANGUAGE__: string;
     __MODEL__: string;
     __VISION_MODEL__: string;
+    __STT_MODEL__: string;
     electronAPI: ElectronAPI;
   }
 }
@@ -48,8 +49,18 @@ function App() {
     description: "",
     variant: "neutral"
   })
-  const [currentLanguage, setCurrentLanguage] = useState<string>(() => window.__LANGUAGE__ || "python")
-  const [currentModel, setCurrentModel] = useState<string>(() => window.__MODEL__ || "gpt-4o")
+  const [currentLanguage, setCurrentLanguage] = useState<string>(() => {
+    if (!window.__LANGUAGE__) {
+      window.__LANGUAGE__ = "python"
+    }
+    return window.__LANGUAGE__
+  })
+  const [currentModel, setCurrentModel] = useState<string>(() => {
+    if (!window.__MODEL__) {
+      window.__MODEL__ = "gpt-4o"
+    }
+    return window.__MODEL__
+  })
   const [credits, setCredits] = useState<number>(1)
 
   // Helper function to safely update language
@@ -75,6 +86,14 @@ function App() {
     setCurrentModel("gpt-4o")
     window.electronAPI.setModel("gpt-4o").catch(console.error)
   }, [])
+
+  // Initialize STT model
+  useState<string>(() => {
+    if (!window.__STT_MODEL__) {
+      window.__STT_MODEL__ = "whisper-1"
+    }
+    return window.__STT_MODEL__
+  })
 
   // Show toast method
   const showToast = useCallback(

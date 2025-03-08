@@ -59,6 +59,26 @@ interface ElectronAPI {
   installUpdate: () => void
   onUpdateAvailable: (callback: (info: any) => void) => () => void
   onUpdateDownloaded: (callback: (info: any) => void) => () => void
+  // Add desktop capture methods
+  getSystemAudioSources: () => Promise<Array<{
+    id: string
+    name: string
+    thumbnailURL?: string
+    type: 'screen' | 'window' | 'audio' | 'unknown'
+  }>>
+  getApplicationSources: () => Promise<Array<{
+    id: string
+    name: string
+    thumbnailURL?: string
+    appIcon?: string
+    type: 'screen' | 'window' | 'audio' | 'unknown'
+  }>>
+  getScreenSources: () => Promise<Array<{
+    id: string
+    name: string
+    thumbnailURL: string
+    type: 'screen'
+  }>>
 }
 
 interface Window {

@@ -74,6 +74,11 @@ export interface ElectronAPI {
   setApiKey: (provider: 'openai' | 'anthropic' | 'google' | 'deepseek' | 'xai' | 'meta' | 'alibaba', key: string) => Promise<void>
   clearApiKey: (provider: 'openai' | 'anthropic' | 'google' | 'deepseek' | 'xai' | 'meta' | 'alibaba') => Promise<void>
 
+  // Whisper CLI methods
+  saveTempAudio: (audioData: Blob) => Promise<string>
+  runWhisperCLI: (filePath: string, modelName: string) => Promise<string>
+  cleanupTempFile: (filePath: string) => Promise<void>
+
   // Add this to the ElectronAPI interface
   getAppVersion: () => Promise<string>
   getElectronVersion: () => Promise<string>
@@ -103,6 +108,7 @@ declare global {
     __LANGUAGE__: string
     __MODEL__: string
     __VISION_MODEL__: string
+    __STT_MODEL__: string
     __THEME__: 'light' | 'dark'
   }
 }

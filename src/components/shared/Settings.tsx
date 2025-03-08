@@ -2,6 +2,7 @@ import React, { useEffect, useState } from 'react'
 import { LanguageSelector } from './LanguageSelector'
 import { ModelSelector } from './ModelSelector'
 import VisionModelSelector from './VisionModelSelector'
+import STTModelSelector from './STTModelSelector'
 import { useToast } from '../../contexts/toast'
 
 interface SettingsProps {
@@ -55,6 +56,12 @@ export const Settings: React.FC<SettingsProps> = ({
       window.__VISION_MODEL__ = "gpt-4o-mini"
     }
     return window.__VISION_MODEL__
+  })
+  const [currentSTTModel, setCurrentSTTModel] = useState<string>(() => {
+    if (!window.__STT_MODEL__) {
+      window.__STT_MODEL__ = "whisper-1"
+    }
+    return window.__STT_MODEL__
   })
   const [opacity, setOpacity] = useState(1.0)
   const [theme, setTheme] = useState<'light' | 'dark'>('dark')
@@ -814,7 +821,11 @@ export const Settings: React.FC<SettingsProps> = ({
           />
           <VisionModelSelector
             currentVisionModel={currentVisionModel}
-            setVisionModel={setCurrentVisionModel}
+            setCurrentVisionModel={setCurrentVisionModel}
+          />
+          <STTModelSelector
+            currentSTTModel={currentSTTModel}
+            setSTTModel={setCurrentSTTModel}
           />
         </div>
       </div>
