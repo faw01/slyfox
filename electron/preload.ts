@@ -88,6 +88,7 @@ interface ElectronAPI {
   saveTempAudio: (audioBlob: Blob) => Promise<string>
   runWhisperCLI: (filePath: string, modelName: string) => Promise<void>
   cleanupTempFile: (filePath: string) => Promise<void>
+  generateTeleprompterResponse: (transcript: string) => Promise<void>
 }
 
 export const PROCESSING_EVENTS = {
@@ -350,7 +351,9 @@ const electronAPI = {
   runWhisperCLI: (filePath: string, modelName: string) => 
     ipcRenderer.invoke('run-whisper-cli', filePath, modelName),
   cleanupTempFile: (filePath: string) => 
-    ipcRenderer.invoke('cleanup-temp-file', filePath)
+    ipcRenderer.invoke('cleanup-temp-file', filePath),
+  generateTeleprompterResponse: (transcript: string) => 
+    ipcRenderer.invoke('generate-teleprompter-response', transcript)
 } as ElectronAPI
 
 // Before exposing the API

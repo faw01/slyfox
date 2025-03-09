@@ -9,4 +9,7 @@ export * from './extract';
 export * from './solve';
 
 // Export code debugging prompts
-export * from './debug'; 
+export * from './debug';
+
+// Export teleprompter prompts
+export * from './teleprompter'; 

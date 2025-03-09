@@ -769,4 +769,34 @@ export function initializeIpcHandlers(deps: IIpcHandlerDeps): void {
       return [];
     }
   });
+
+  // Teleprompter handler
+  ipcMain.handle("generate-teleprompter-response", async (_, transcript: string) => {
+    console.log("Received request to generate teleprompter response. Transcript length:", transcript.length);
+    console.log("Teleprompter helper available:", !!deps.teleprompterHelper);
+    
+    try {
+      if (!deps.teleprompterHelper) {
+        console.error("Teleprompter helper not initialized");
+        return { 
+          success: false, 
+          error: "Teleprompter helper not initialized" 
+        }
+      }
+      
+      // Log more details about the teleprompterHelper state
+      console.log("Checking teleprompterHelper internal state...");
+      
+      console.log("Calling teleprompterHelper.generateResponse() with transcript:", transcript.substring(0, 50) + "...");
+      const result = await deps.teleprompterHelper.generateResponse(transcript);
+      console.log("Teleprompter response generated successfully:", result.success, "Data length:", result.data ? result.data.length : 0);
+      return result;
+    } catch (error) {
+      console.error("Error generating teleprompter response:", error);
+      return { 
+        success: false, 
+        error: error instanceof Error ? error.message : "Failed to generate response" 
+      }
+    }
+  })
 }

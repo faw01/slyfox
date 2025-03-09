@@ -21,6 +21,7 @@ interface ApiKeys {
   xai?: string
   meta?: string
   alibaba?: string
+  deepgram?: string
 }
 
 interface Hotkey {
@@ -59,7 +60,7 @@ export const Settings: React.FC<SettingsProps> = ({
   })
   const [currentSTTModel, setCurrentSTTModel] = useState<string>(() => {
     if (!window.__STT_MODEL__) {
-      window.__STT_MODEL__ = "whisper-1"
+      window.__STT_MODEL__ = "deepgram-nova-3"
     }
     return window.__STT_MODEL__
   })
@@ -476,7 +477,8 @@ export const Settings: React.FC<SettingsProps> = ({
               { key: 'google', label: 'Google API Key' },
               { key: 'deepseek', label: 'DeepSeek API Key' },
               { key: 'xai', label: 'xAI API Key' },
-              { key: 'alibaba', label: 'Alibaba API Key' }
+              { key: 'alibaba', label: 'Alibaba API Key' },
+              { key: 'deepgram', label: 'Deepgram API Key' }
             ].map(({ key, label }) => (
               <div key={key} className="flex items-center gap-2">
                 <div className="relative flex-1 group">

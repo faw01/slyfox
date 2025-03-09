@@ -7,6 +7,8 @@ import { ShortcutsHelper } from "./shortcuts"
 import { initAutoUpdater } from "./autoUpdater"
 import * as dotenv from "dotenv"
 import { store } from "./store"
+import { TeleprompterHelper } from "./TeleprompterHelper"
+import { createAIManager } from "../src/lib/models"
 
 // Enable WebGPU
 app.commandLine.appendSwitch('enable-unsafe-webgpu')
@@ -32,6 +34,8 @@ const state = {
   screenshotHelper: null as ScreenshotHelper | null,
   shortcutsHelper: null as ShortcutsHelper | null,
   processingHelper: null as ProcessingHelper | null,
+  teleprompterHelper: null as TeleprompterHelper | null,
+  aiManager: null as any,
 
   // View and state management
   view: "queue" as "queue" | "solutions" | "debug",
@@ -100,6 +104,7 @@ export interface IIpcHandlerDeps {
   ) => Promise<{ success: boolean; error?: string }>
   getImagePreview: (filepath: string) => Promise<string>
   processingHelper: ProcessingHelper | null
+  teleprompterHelper: TeleprompterHelper | null
   PROCESSING_EVENTS: typeof state.PROCESSING_EVENTS
   takeScreenshot: () => Promise<string>
   getView: () => "queue" | "solutions" | "debug"
@@ -114,7 +119,13 @@ export interface IIpcHandlerDeps {
 
 // Initialize helpers
 function initializeHelpers() {
+  // Initialize AI model manager
+  if (!state.aiManager) {
+    state.aiManager = createAIManager(store)
+  }
+  
   state.screenshotHelper = new ScreenshotHelper(state.view)
+  
   state.processingHelper = new ProcessingHelper({
     getScreenshotHelper,
     getMainWindow,
@@ -132,6 +143,24 @@ function initializeHelpers() {
     getHasDebugged,
     PROCESSING_EVENTS: state.PROCESSING_EVENTS
   } as IProcessingHelperDeps)
+  
+  // Initialize teleprompterHelper
+  console.log("Initializing teleprompterHelper...");
+  // Make sure aiManager is initialized
+  if (!state.aiManager) {
+    state.aiManager = createAIManager(store)
+  }
+  state.teleprompterHelper = new TeleprompterHelper({
+    aiManager: state.aiManager,
+    getMainWindow: getMainWindow,
+    store: store,
+    getApiKey: (provider: string) => {
+      const apiKeys = store.get('apiKeys') || {}
+      return apiKeys[provider as keyof typeof apiKeys] || null
+    }
+  })
+  console.log("teleprompterHelper initialized:", !!state.teleprompterHelper);
+  
   state.shortcutsHelper = new ShortcutsHelper({
     getMainWindow,
     takeScreenshot,
@@ -510,8 +539,16 @@ function loadEnvVariables() {
 // Initialize application
 async function initializeApp() {
   try {
-    loadEnvVariables()
-    initializeHelpers()
+    console.log("Starting application initialization...");
+    loadEnvVariables();
+    console.log("Loaded environment variables");
+    
+    console.log("Initializing helpers...");
+    initializeHelpers();
+    console.log("Helpers initialized successfully");
+    console.log("teleprompterHelper available:", !!state.teleprompterHelper);
+    
+    console.log("Setting up IPC handlers...");
     initializeIpcHandlers({
       getMainWindow,
       setWindowDimensions,
@@ -520,6 +557,7 @@ async function initializeApp() {
       deleteScreenshot,
       getImagePreview,
       processingHelper: state.processingHelper,
+      teleprompterHelper: state.teleprompterHelper,
       PROCESSING_EVENTS: state.PROCESSING_EVENTS,
       takeScreenshot,
       getView,
@@ -539,20 +577,26 @@ async function initializeApp() {
         ),
       moveWindowUp: () => moveWindowVertical((y) => y - state.step),
       moveWindowDown: () => moveWindowVertical((y) => y + state.step)
-    })
-    await createWindow()
-    state.shortcutsHelper?.registerGlobalShortcuts()
+    });
+    console.log("IPC handlers initialized");
+    
+    console.log("Creating main window...");
+    await createWindow();
+    console.log("Main window created");
+    
+    state.shortcutsHelper?.registerGlobalShortcuts();
 
     // Initialize auto-updater regardless of environment
-    initAutoUpdater()
+    initAutoUpdater();
     console.log(
       "Auto-updater initialized in",
       isDev ? "development" : "production",
       "mode"
-    )
+    );
+    console.log("Application initialization complete");
   } catch (error) {
-    console.error("Failed to initialize application:", error)
-    app.quit()
+    console.error("Failed to initialize application:", error);
+    app.quit();
   }
 }
 

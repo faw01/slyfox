@@ -159,27 +159,23 @@ const QueueCommands: React.FC<QueueCommandsProps> = ({
           {/* Separator */}
           <div className="mx-2 h-4 w-px bg-white/20" />
 
-          {/* Microphone icon for transcription */}
+          {/* Teleprompter */}
           <div className="relative inline-block">
             <div 
-              className="w-4 h-4 flex items-center justify-center text-white/70 hover:text-white/90 transition-colors cursor-pointer"
+              className="flex items-center gap-2 rounded px-2 py-1.5 hover:bg-white/10 transition-colors cursor-default"
               onClick={() => setIsSTTPanelOpen(!isSTTPanelOpen)}
             >
-              <svg
-                xmlns="http://www.w3.org/2000/svg"
-                viewBox="0 0 24 24"
-                fill="none"
-                stroke="currentColor"
-                strokeWidth="2"
-                strokeLinecap="round"
-                strokeLinejoin="round"
-                className="w-3.5 h-3.5"
-              >
-                <path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z" />
-                <path d="M19 10v2a7 7 0 0 1-14 0v-2" />
-                <line x1="12" y1="19" x2="12" y2="23" />
-                <line x1="8" y1="23" x2="16" y2="23" />
-              </svg>
+              <span className="text-[11px] leading-none truncate cursor-default">
+                Teleprompter
+              </span>
+              <div className="flex gap-1">
+                <button className="bg-white/10 rounded-md px-1.5 py-1 text-[11px] leading-none text-white/70 cursor-default">
+                  {COMMAND_KEY}
+                </button>
+                <button className="bg-white/10 rounded-md px-1.5 py-1 text-[11px] leading-none text-white/70 cursor-default">
+                  T
+                </button>
+              </div>
             </div>
             
             {/* STT Panel */}
@@ -256,7 +252,7 @@ const QueueCommands: React.FC<QueueCommandsProps> = ({
               >
                 {/* Add transparent bridge */}
                 <div className="absolute -top-2 right-0 w-full h-2" />
-                <div className="p-3 text-xs bg-black/80 backdrop-blur-md rounded-lg border border-white/10 text-white/90 shadow-lg">
+                <div className="text-xs text-white/90 backdrop-blur-md bg-black/60 rounded-lg py-2 px-4">
                   <div className="space-y-4">
                     <div className="flex items-center justify-between">
                       <h3 className="font-medium truncate">Settings</h3>

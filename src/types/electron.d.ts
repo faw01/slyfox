@@ -90,6 +90,13 @@ export interface ElectronAPI {
   // Taskbar Icon methods
   getTaskbarIcon: () => Promise<boolean>
   setTaskbarIcon: (hidden: boolean) => Promise<{ success: boolean; error?: string }>
+
+  // Teleprompter methods
+  generateTeleprompterResponse: (transcript: string) => Promise<{ 
+    success: boolean; 
+    data?: string; 
+    error?: string 
+  }>
 }
 
 declare global {

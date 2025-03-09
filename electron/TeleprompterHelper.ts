@@ -1,0 +1,121 @@
+import { AIModelManager } from "../src/lib/models"
+import { StoreSchema } from "./store"
+import Store from "electron-store"
+import { createTeleprompterMessages } from "../src/lib/config/prompts/teleprompter"
+import { BrowserWindow } from "electron"
+
+// Define the proper store type with get/set methods
+type AppStore = Store<StoreSchema> & {
+  get: <K extends keyof StoreSchema>(key: K) => StoreSchema[K]
+  set: <K extends keyof StoreSchema>(key: K, value: StoreSchema[K]) => void
+}
+
+interface ITeleprompterHelperDeps {
+  getMainWindow: () => BrowserWindow | null
+  store: AppStore
+  aiManager: AIModelManager
+  getApiKey: (provider: string) => string | null
+}
+
+export class TeleprompterHelper {
+  private deps: ITeleprompterHelperDeps
+  private isGeneratingResponse: boolean = false
+  
+  constructor(deps: ITeleprompterHelperDeps) {
+    this.deps = deps
+  }
+
+  /**
+   * Gets the currently selected model from the main window or falls back to the store
+   * @returns The current model ID
+   */
+  private async getCurrentModel(): Promise<string> {
+    const mainWindow = this.deps.getMainWindow()
+    if (!mainWindow) {
+      // Fall back to store if no window is available
+      return this.deps.store.get('model')
+    }
+
+    try {
+      // Get the model from the window global variable
+      const model = await mainWindow.webContents.executeJavaScript('window.__MODEL__')
+      
+      if (typeof model === 'string' && model) {
+        return model
+      } else {
+        // Fall back to store if window global isn't set
+        return this.deps.store.get('model')
+      }
+    } catch (error) {
+      console.error('Error getting current model:', error)
+      // Fall back to store if there's an error
+      return this.deps.store.get('model')
+    }
+  }
+
+  /**
+   * Generate an AI response to an interview question
+   * @param transcript The transcribed interview question
+   * @returns Object with success flag and either response data or error message
+   */
+  public async generateResponse(transcript: string): Promise<{ 
+    success: boolean; 
+    data?: string; 
+    error?: string 
+  }> {
+    if (this.isGeneratingResponse) {
+      return { 
+        success: false, 
+        error: "Already generating a response, please wait" 
+      }
+    }
+
+    if (!transcript || transcript.trim().length < 10) {
+      return { 
+        success: false, 
+        error: "Transcript is too short to generate a meaningful response" 
+      }
+    }
+
+    try {
+      this.isGeneratingResponse = true
+      
+      // Get main window
+      const mainWindow = this.deps.getMainWindow()
+      if (!mainWindow) {
+        throw new Error("No main window available")
+      }
+      
+      // Get the current model from window.__MODEL__ or store
+      const currentModel = await this.getCurrentModel()
+      console.log("Using model for teleprompter response:", currentModel)
+      
+      // Create prompt
+      const messages = createTeleprompterMessages(transcript)
+      
+      // Generate completion
+      const response = await this.deps.aiManager.generateCompletion(
+        currentModel, 
+        messages, 
+        {}
+      )
+      
+      if (!response || !response.content) {
+        throw new Error("Failed to generate response")
+      }
+      
+      return {
+        success: true,
+        data: response.content
+      }
+    } catch (error: any) {
+      console.error("Error generating teleprompter response:", error)
+      return {
+        success: false,
+        error: error.message || "Failed to generate response"
+      }
+    } finally {
+      this.isGeneratingResponse = false
+    }
+  }
+} 

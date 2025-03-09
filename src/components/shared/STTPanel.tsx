@@ -1,16 +1,13 @@
 import React, { useState, useEffect, useRef } from 'react'
-import CustomDesktopPickerDropdown from './CustomDesktopPickerDropdown'
 import { CustomDropdown } from './CustomDropdown'
+import { Button } from '../ui/button'
+import { Context } from '../providers/Provider'
+import AudioVisualizer from './AudioVisualizer'
+import { Card, CardContent } from '../ui/card'
+import { Mic, Speaker, Power, StopCircle } from 'lucide-react'
+import { showToast } from '../../lib/utils'
 
-// WebGPU type augmentation
-declare global {
-  interface Navigator {
-    gpu?: {
-      requestAdapter: () => Promise<any>;
-    };
-  }
-}
-
+// Remove hardcoded API key - we'll get it from settings
 interface STTPanelProps {
   isOpen: boolean
   onClose: () => void
@@ -23,981 +20,803 @@ const STTPanel: React.FC<STTPanelProps> = ({
   currentSTTModel
 }) => {
   const [isRecording, setIsRecording] = useState(false)
-  const [transcript, setTranscript] = useState<string>('')
-  const [transcriptChunks, setTranscriptChunks] = useState<string[]>([])
-  
-  // Separate transcripts for microphone and system audio
   const [micTranscript, setMicTranscript] = useState<string>('')
   const [systemTranscript, setSystemTranscript] = useState<string>('')
-  const [micTranscriptChunks, setMicTranscriptChunks] = useState<string[]>([])
-  const [systemTranscriptChunks, setSystemTranscriptChunks] = useState<string[]>([])
-  
   const [micEnabled, setMicEnabled] = useState(true)
   const [systemAudioEnabled, setSystemAudioEnabled] = useState(false)
-  const [appAudioEnabled, setAppAudioEnabled] = useState(false)
-  const [selectedApp, setSelectedApp] = useState<string | null>(null)
-  const [isProcessing, setIsProcessing] = useState(false)
-  const [microphonePermissionGranted, setMicrophonePermissionGranted] = useState<boolean | null>(null) // Start with null (unknown)
-  const [selectedSystemAudioSource, setSelectedSystemAudioSource] = useState<string | null>(null)
-  const [isElectronAvailable, setIsElectronAvailable] = useState(true) // Default to true for UI
-  const [systemAudioBlackHoleAvailable, setSystemAudioBlackHoleAvailable] = useState(false)
-  const [openAIApiKey, setOpenAIApiKey] = useState<string | null>(null)
-  const [apiKeyLoading, setApiKeyLoading] = useState(true)
-  const [transcriptionStatus, setTranscriptionStatus] = useState<'idle' | 'processing' | 'error'>('idle')
-  const [transcriptError, setTranscriptError] = useState<string | null>(null)
-  
-  // WebGPU experimental options
-  const [webGpuEnabled, setWebGpuEnabled] = useState(false)
-  const [webGpuAvailable, setWebGpuAvailable] = useState(false)
-  const [webGpuLoaded, setWebGpuLoaded] = useState(false)
-  const [webGpuLoading, setWebGpuLoading] = useState(false)
-  const [webGpuLoadingProgress, setWebGpuLoadingProgress] = useState<any[]>([])
-  const [webGpuTps, setWebGpuTps] = useState<number | null>(null)
-  const [webGpuCacheInfo, setWebGpuCacheInfo] = useState<any>(null)
-  const [webGpuModel, setWebGpuModel] = useState<'base' | 'large'>('base')
-  
-  // Refs for audio recording
-  const mediaRecorderRef = useRef<MediaRecorder | null>(null)
-  const intervalRef = useRef<NodeJS.Timeout | null>(null)
-  const streamRef = useRef<MediaStream | null>(null)
-  const timeoutRef = useRef<NodeJS.Timeout | null>(null)
-  const chunksRef = useRef<BlobPart[]>([])
-  const webGpuWorkerRef = useRef<Worker | null>(null)
-  const audioContextRef = useRef<AudioContext | null>(null)
-
-  // In the component, add this state for screen selection
-  const [selectedScreenId, setSelectedScreenId] = useState<string | null>(null)
-  const [selectedScreenName, setSelectedScreenName] = useState<string>('')
-
-  // Add a state for showing BlackHole setup instructions
-  const [showBlackHoleSetupHelp, setShowBlackHoleSetupHelp] = useState(false)
-
-  // Add these state variables at the top with other state declarations
-  const [audioInputDevices, setAudioInputDevices] = useState<MediaDeviceInfo[]>([])
-  const [selectedAudioInputId, setSelectedAudioInputId] = useState<string>('')
-
-  // Add separate state variables for mic and system audio
+  const [audioDevices, setAudioDevices] = useState<MediaDeviceInfo[]>([])
   const [micInputDeviceId, setMicInputDeviceId] = useState<string>('')
   const [systemAudioDeviceId, setSystemAudioDeviceId] = useState<string>('')
-
-  // Request microphone permissions and load API key on mount
+  const [microphonePermissionGranted, setMicrophonePermissionGranted] = useState<boolean | null>(null)
+  const [systemAudioLevel, setSystemAudioLevel] = useState<number>(0)
+  const [micAudioLevel, setMicAudioLevel] = useState<number>(0)
+  const [apiKeys, setApiKeys] = useState<Record<string, string | undefined>>({})
+  
+  // Add refs for system audio recording and Deepgram
+  const systemAudioContextRef = useRef<AudioContext | null>(null)
+  const systemAnalyserRef = useRef<AnalyserNode | null>(null)
+  const systemStreamRef = useRef<MediaStream | null>(null)
+  const systemAnimationFrameRef = useRef<number | null>(null)
+  const systemRecorderRef = useRef<MediaRecorder | null>(null)
+  const systemDeepgramSocketRef = useRef<WebSocket | null>(null)
+  
+  const micAudioContextRef = useRef<AudioContext | null>(null)
+  const micAnalyserRef = useRef<AnalyserNode | null>(null)
+  const micStreamRef = useRef<MediaStream | null>(null)
+  const micAnimationFrameRef = useRef<number | null>(null)
+  const micRecorderRef = useRef<MediaRecorder | null>(null)
+  const deepgramSocketRef = useRef<WebSocket | null>(null)
+  
+  // Add a ref to track the complete transcript
+  const completeTranscriptRef = useRef<{
+    mic: string;
+    system: string;
+  }>({
+    mic: '',
+    system: ''
+  });
+  
+  // New state for AI interview assistant
+  const [aiResponse, setAiResponse] = useState<string>('');
+  const [isGeneratingResponse, setIsGeneratingResponse] = useState<boolean>(false);
+  const [lastProcessedTranscript, setLastProcessedTranscript] = useState<string>('');
+  
+  // Transcript delay timeout ref
+  const transcriptTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+  
+  // Add state to track question segments
+  const [currentQuestionSegment, setCurrentQuestionSegment] = useState<string>('');
+  
+  // Load devices when panel opens
   useEffect(() => {
     if (isOpen) {
-      checkMicrophonePermission()
-      loadApiKey()
-      checkBlackHoleAvailability()
-      loadAudioDevices()
+      checkMicrophonePermission();
+      loadAudioDevices();
+      loadApiKeys();
     }
     
-    // Cleanup on unmount/close
     return () => {
-      cleanupRecording()
-    }
-  }, [isOpen])
-
-  // Combine transcript chunks into a single string whenever chunks change
-  useEffect(() => {
-    setTranscript(transcriptChunks.join(' '))
-  }, [transcriptChunks])
+      stopAudioMonitoring('system');
+      stopAudioMonitoring('mic');
+      closeDeepgramConnection('system');
+      closeDeepgramConnection('mic');
+      
+      // Clean up timeout on component unmount
+      if (transcriptTimeoutRef.current) {
+        clearTimeout(transcriptTimeoutRef.current);
+        transcriptTimeoutRef.current = null;
+      }
+    };
+  }, [isOpen]);
   
-  // Update separate transcripts for mic and system audio
-  useEffect(() => {
-    setMicTranscript(micTranscriptChunks.join(' '))
-  }, [micTranscriptChunks])
-  
-  useEffect(() => {
-    setSystemTranscript(systemTranscriptChunks.join(' '))
-  }, [systemTranscriptChunks])
-
-  // Load the OpenAI API key
-  const loadApiKey = async () => {
-    setApiKeyLoading(true)
+  // Load API keys from electron
+  const loadApiKeys = async () => {
     try {
-      // Check if window.electronAPI is available
       if (window.electronAPI && window.electronAPI.getApiKeys) {
-        const apiKeys = await window.electronAPI.getApiKeys()
-        const key = apiKeys?.openai || ''
-        setOpenAIApiKey(key)
-        console.log(`OpenAI API key ${key ? 'loaded' : 'not found'}`)
-          } else {
-        console.error('electronAPI.getApiKeys is not available')
-        setOpenAIApiKey(null)
+        const keys = await window.electronAPI.getApiKeys();
+        setApiKeys(keys || {});
       }
     } catch (error) {
-      console.error('Failed to load API key:', error)
-      setOpenAIApiKey(null)
-    } finally {
-      setApiKeyLoading(false)
+      console.error('Failed to load API keys:', error);
     }
-  }
+  };
 
-  // Function to check and request microphone permission
+  // Check microphone permission
   const checkMicrophonePermission = async () => {
     try {
-      // Check if navigator.mediaDevices is available
       if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
-        console.error('MediaDevices API is not supported in this browser/environment')
-        setMicrophonePermissionGranted(false)
-        return false
+        setMicrophonePermissionGranted(false);
+        return false;
       }
 
-      // Request microphone permission
-      const stream = await navigator.mediaDevices.getUserMedia({ 
-        audio: {
-          echoCancellation: true,
-          noiseSuppression: true,
-          autoGainControl: true
-        } 
-      })
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      stream.getTracks().forEach(track => track.stop());
       
-      // Permission granted, stop all tracks to release the microphone
-      stream.getTracks().forEach(track => track.stop())
-      
-      setMicrophonePermissionGranted(true)
-      console.log('Microphone permission granted')
-      return true
+      setMicrophonePermissionGranted(true);
+      return true;
     } catch (error) {
-      console.error('Microphone permission denied:', error)
-      setMicrophonePermissionGranted(false)
-      return false
-    }
-  }
-
-  // Function to explicitly request microphone permissions
-  const requestMicrophonePermission = async () => {
-    const granted = await checkMicrophonePermission()
-  }
-
-  // Check for WebGPU availability
-  useEffect(() => {
-    if (navigator.gpu) {
-      setWebGpuAvailable(true);
-      console.log('WebGPU is available in this browser');
-    } else {
-      setWebGpuAvailable(false);
-      console.log('WebGPU is not available in this browser');
-    }
-  }, []);
-
-  // Initialize WebGPU worker
-  useEffect(() => {
-    if (webGpuEnabled && webGpuAvailable && !webGpuWorkerRef.current) {
-      try {
-        // Create worker
-        const worker = new Worker(new URL('../../workers/webgpuWhisperWorker.ts', import.meta.url), { type: 'module' });
-        webGpuWorkerRef.current = worker;
-        
-        // Setup message handler
-        worker.addEventListener('message', handleWebGpuWorkerMessage);
-        
-        // Initialize loading
-        setWebGpuLoading(true);
-        worker.postMessage({ 
-          type: 'load',
-          model: webGpuModel === 'base' ? 'onnx-community/whisper-base' : 'onnx-community/whisper-large-v3-turbo'
-        });
-        
-        console.log('Initializing WebGPU Whisper model');
-    } catch (error) {
-        console.error('Failed to initialize WebGPU worker:', error);
-        setWebGpuEnabled(false);
-      }
-      
-      // Cleanup function
-      return () => {
-        if (webGpuWorkerRef.current) {
-          webGpuWorkerRef.current.removeEventListener('message', handleWebGpuWorkerMessage);
-          webGpuWorkerRef.current.terminate();
-          webGpuWorkerRef.current = null;
-        }
-      };
-    }
-  }, [webGpuEnabled, webGpuAvailable, webGpuModel]);
-  
-  // Handle messages from the WebGPU worker
-  const handleWebGpuWorkerMessage = (e: MessageEvent) => {
-    const { status, data, output, tps, source = 'mic' } = e.data;
-    
-    switch (status) {
-      case 'loading':
-        setWebGpuLoading(true);
-        break;
-        
-      case 'initiate':
-        setWebGpuLoadingProgress(prev => [...prev, e.data]);
-        break;
-        
-      case 'progress':
-        setWebGpuLoadingProgress(prev => 
-          prev.map(item => {
-            if (item.file === e.data.file) {
-              return { ...item, ...e.data };
-            }
-            return item;
-          })
-        );
-        break;
-        
-      case 'done':
-        setWebGpuLoadingProgress(prev => 
-          prev.filter(item => item.file !== e.data.file)
-        );
-        // If this was the last file, mark loading as complete
-        if (e.data.file.includes('decoder_model_merged')) {
-          setWebGpuLoaded(true);
-          setWebGpuLoading(false);
-          console.log('WebGPU Whisper model loaded successfully');
-        }
-        break;
-        
-      case 'ready':
-        setWebGpuLoaded(true);
-        setWebGpuLoading(false);
-        setWebGpuLoadingProgress([]);
-        console.log('WebGPU Whisper model loaded successfully');
-        break;
-        
-      case 'start':
-        setIsProcessing(true);
-        break;
-        
-      case 'update':
-        if (tps) {
-          setWebGpuTps(tps);
-        }
-        break;
-        
-      case 'complete':
-        setIsProcessing(false);
-        if (output && Array.isArray(output) && output.length > 0) {
-          const newTranscription = output[0].trim();
-          
-          if (newTranscription) {
-            // Update the appropriate transcript based on source
-            if (source === 'mic') {
-              setMicTranscriptChunks(prev => {
-              if (prev.length > 0) {
-                const lastChunk = prev[prev.length - 1];
-                const needsSpace = !lastChunk.match(/[.,!?]$/);
-                return [...prev, needsSpace ? ` ${newTranscription}` : newTranscription];
-              }
-              return [...prev, newTranscription];
-            });
-            } else if (source === 'system') {
-              setSystemTranscriptChunks(prev => {
-                if (prev.length > 0) {
-                  const lastChunk = prev[prev.length - 1];
-                  const needsSpace = !lastChunk.match(/[.,!?]$/);
-                  return [...prev, needsSpace ? ` ${newTranscription}` : newTranscription];
-                }
-                return [...prev, newTranscription];
-              });
-            }
-          }
-        }
-        break;
-        
-      case 'error':
-        setWebGpuLoading(false);
-        setWebGpuLoaded(false);
-        console.error('WebGPU Error:', data?.message || 'An error occurred while processing audio');
-        break;
+      setMicrophonePermissionGranted(false);
+      return false;
     }
   };
   
-  // Function to process audio with WebGPU
-  const processAudioWithWebGpu = async (audioBlob: Blob, source: 'mic' | 'system' = 'mic') => {
-    if (!webGpuWorkerRef.current || !webGpuLoaded) return;
-    
-    try {
-      // Convert blob to array buffer
-      const arrayBuffer = await audioBlob.arrayBuffer();
-      
-      // Create AudioContext if not exists
-      if (!audioContextRef.current) {
-        audioContextRef.current = new AudioContext({ sampleRate: 16000 });
-      }
-      
-      // Decode audio
-      const audioData = await audioContextRef.current.decodeAudioData(arrayBuffer);
-      const audioArray = audioData.getChannelData(0);
-      
-      // Send data to worker
-      webGpuWorkerRef.current.postMessage({
-        type: 'generate',
-        data: {
-          audio: audioArray,
-          language: 'en',
-          source: source // Pass the source to identify in the response
-        }
-      });
-      
-    } catch (error) {
-      console.error('Error processing audio with WebGPU:', error);
-      if (transcriptionStatus !== 'error') {
-        setTranscriptionStatus('error');
-        setTranscriptError(`WebGPU Error: ${error instanceof Error ? error.message : String(error)}`);
-      }
-    }
-  };
-
-  // Transcribe audio chunk using OpenAI Whisper API or local Whisper CLI
-  const transcribeChunk = async (audioBlob: Blob, source: 'mic' | 'system' = 'mic'): Promise<string> => {
-    // Use WebGPU processing if enabled
-    if (webGpuEnabled && webGpuLoaded) {
-      await processAudioWithWebGpu(audioBlob, source);
-      return '';
-    }
-    
-    // Check if we're using a local model or API
-    const isLocalModel = currentSTTModel.startsWith('local:');
-    
-    if (isLocalModel) {
-      return await transcribeWithLocalWhisper(audioBlob, source);
-    }
-    
-    // Existing API implementation
-    if (!openAIApiKey) {
-      console.error('OpenAI API key is not available')
-      return '';
-      }
-      
-      setIsProcessing(true)
-      
-    const formData = new FormData()
-    formData.append('file', audioBlob, `chunk${Date.now()}.wav`)
-    formData.append('model', 'whisper-1')
-    
-    // Add optimizations for English transcription
-    formData.append('language', 'en')
-    formData.append('response_format', 'verbose_json')
-    
-    // Add prompt to improve formatting and reduce hallucinations
-    const prompt = "The following is a clear, properly punctuated English transcription with minimal filler words and no hallucinations:"
-    formData.append('prompt', prompt)
-    
-    // Add temperature to reduce hallucinations
-    formData.append('temperature', '0.0')
-    
-    try {
-      const response = await fetch(
-        'https://api.openai.com/v1/audio/transcriptions',
-        {
-          method: 'POST',
-          headers: {
-            Authorization: `Bearer ${openAIApiKey}`,
-          },
-          body: formData,
-        }
-      )
-      
-      if (!response.ok) {
-        const errorData = await response.text()
-        throw new Error(`API Error: ${response.status} - ${errorData}`)
-      }
-      
-      const data = await response.json()
-      
-      // Handle verbose_json response format
-      if (data.text && data.text.trim()) {
-        console.log('Transcription received:', data.text)
-        
-        // Clean up the text by removing excessive spaces and normalizing punctuation
-        const cleanedText = data.text
-          .trim()
-          .replace(/\s+/g, ' ')
-          .replace(/\s+([.,!?])/g, '$1')
-        
-        // Update the appropriate transcript chunks based on source
-        if (source === 'mic') {
-          setMicTranscriptChunks(prev => {
-            // If there are previous chunks, ensure proper spacing
-            if (prev.length > 0) {
-              const lastChunk = prev[prev.length - 1]
-              // Add space only if the last chunk doesn't end with punctuation
-              const needsSpace = !lastChunk.match(/[.,!?]$/)
-              return [...prev, needsSpace ? ` ${cleanedText}` : cleanedText]
-            }
-            return [...prev, cleanedText]
-          })
-        } else if (source === 'system') {
-          setSystemTranscriptChunks(prev => {
-            // If there are previous chunks, ensure proper spacing
-            if (prev.length > 0) {
-              const lastChunk = prev[prev.length - 1]
-              // Add space only if the last chunk doesn't end with punctuation
-              const needsSpace = !lastChunk.match(/[.,!?]$/)
-              return [...prev, needsSpace ? ` ${cleanedText}` : cleanedText]
-            }
-            return [...prev, cleanedText]
-          })
-        }
-        
-        // Also update the combined transcript for backward compatibility
-        setTranscriptChunks(prev => {
-          // If there are previous chunks, ensure proper spacing
-          if (prev.length > 0) {
-            const lastChunk = prev[prev.length - 1]
-            // Add space only if the last chunk doesn't end with punctuation
-            const needsSpace = !lastChunk.match(/[.,!?]$/)
-            return [...prev, needsSpace ? ` ${cleanedText}` : cleanedText]
-          }
-          return [...prev, cleanedText]
-        })
-        
-        return cleanedText;
-      }
-      
-      return '';
-    } catch (error) {
-      console.error('Error during transcription:', error)
-      return '';
-    } finally {
-      setIsProcessing(false)
-    }
-  }
-  
-  // Toggle recording with permission check
-  const toggleRecording = async () => {
-    // If we're stopping the recording, just stop
-    if (isRecording) {
-      stopRecording()
-      return
-    }
-    
-    // Check permission before starting
-    if (microphonePermissionGranted !== true) {
-      const permissionGranted = await checkMicrophonePermission()
-      if (!permissionGranted) {
-            return
-      }
-    }
-    
-    // Check if we're using a local model
-    const isLocalModel = currentSTTModel.startsWith('local:')
-    
-    // Check if API key is available (only for API models)
-    if (!isLocalModel && !openAIApiKey) {
-      return
-    }
-      
-    // Start recording
-    startRecording()
-  }
-
-  // Start recording with both microphone and system audio if enabled
-  const startRecording = async () => {
-    // Check if WebGPU is enabled but not loaded
-    if (webGpuEnabled && !webGpuLoaded) {
-      console.error('WebGPU Not Ready: Please wait for the WebGPU model to load');
-      return;
-    }
-    
-    // Check if we're using a local model
-    const isLocalModel = currentSTTModel.startsWith('local:')
-      
-    // Verify we have the API key (only for API models)
-    if (!webGpuEnabled && !isLocalModel && !openAIApiKey) {
-      console.error('API Key Missing: Please add your OpenAI API key in settings');
-      return;
-    }
-      
-    // Reset transcripts for new recording
-    setTranscriptChunks([])
-    setTranscript('')
-    setMicTranscriptChunks([])
-    setSystemTranscriptChunks([])
-    setMicTranscript('')
-    setSystemTranscript('')
-    setTranscriptionStatus('idle')
-    setTranscriptError(null)
-    setIsRecording(true)
-    
-    try {
-      let micStream: MediaStream | null = null;
-      let systemStream: MediaStream | null = null;
-      let micRecorder: MediaRecorder | null = null;
-      let systemRecorder: MediaRecorder | null = null;
-      
-      // Try to get microphone if enabled
-      if (micEnabled && micInputDeviceId) {
-        try {
-          micStream = await navigator.mediaDevices.getUserMedia({
-            audio: {
-              deviceId: { exact: micInputDeviceId },
-              echoCancellation: true,
-              noiseSuppression: true,
-              autoGainControl: true
-            } 
-          });
-          
-          if (micStream.getAudioTracks().length > 0) {
-            console.log('Successfully accessed microphone for recording');
-            
-            // Create microphone recorder
-            micRecorder = new MediaRecorder(micStream);
-            micRecorder.ondataavailable = (event) => {
-              if (event.data.size > 0) {
-                if (webGpuEnabled && webGpuLoaded) {
-                  processAudioWithWebGpu(event.data, 'mic');
-                } else if (isLocalModel) {
-                  transcribeWithLocalWhisper(event.data, 'mic').then(result => {
-                    if (result) {
-                      setMicTranscriptChunks(prev => {
-                        if (prev.length > 0) {
-                          return [...prev, ` ${result}`];
-                        }
-                        return [...prev, result];
-                      });
-                    }
-                  });
-                } else {
-                  transcribeChunk(event.data, 'mic').then(result => {
-                    if (result) {
-                      setMicTranscriptChunks(prev => {
-                        if (prev.length > 0) {
-                          const lastChunk = prev[prev.length - 1];
-                          const needsSpace = !lastChunk.match(/[.,!?]$/);
-                          return [...prev, needsSpace ? ` ${result}` : result];
-                        }
-                        return [...prev, result];
-                      });
-                    }
-                  });
-                }
-              }
-            };
-            
-            // Start microphone recording
-            micRecorder.start();
-          }
-        } catch (micError) {
-          console.error('Microphone access error:', micError);
-        }
-      }
-      
-      // Try to get system audio if enabled
-      if (systemAudioEnabled && systemAudioDeviceId) {
-        try {
-          systemStream = await navigator.mediaDevices.getUserMedia({
-            audio: {
-              deviceId: { exact: systemAudioDeviceId }
-            }
-          });
-          
-          if (systemStream.getAudioTracks().length > 0) {
-            console.log('Successfully accessed system audio for recording');
-            
-            // Create system audio recorder
-            systemRecorder = new MediaRecorder(systemStream);
-            systemRecorder.ondataavailable = (event) => {
-              if (event.data.size > 0) {
-                if (webGpuEnabled && webGpuLoaded) {
-                  processAudioWithWebGpu(event.data, 'system');
-                } else if (isLocalModel) {
-                  transcribeWithLocalWhisper(event.data, 'system').then(result => {
-                    if (result) {
-                      setSystemTranscriptChunks(prev => {
-                        if (prev.length > 0) {
-                          return [...prev, ` ${result}`];
-                        }
-                        return [...prev, result];
-                      });
-                    }
-                  });
-                } else {
-                  transcribeChunk(event.data, 'system').then(result => {
-                    if (result) {
-                      setSystemTranscriptChunks(prev => {
-                        if (prev.length > 0) {
-                          const lastChunk = prev[prev.length - 1];
-                          const needsSpace = !lastChunk.match(/[.,!?]$/);
-                          return [...prev, needsSpace ? ` ${result}` : result];
-                        }
-                        return [...prev, result];
-                      });
-                    }
-                  });
-                }
-              }
-            };
-            
-            // Start system audio recording
-            systemRecorder.start();
-          }
-        } catch (systemError) {
-          console.error('System audio access error:', systemError);
-        }
-      }
-      
-      // If no streams were obtained, throw an error
-      if (!micStream && !systemStream) {
-        throw new Error('No audio sources could be accessed. Check your device permissions.');
-      }
-      
-      // Store references for cleanup
-      streamRef.current = micStream || systemStream;
-      mediaRecorderRef.current = micRecorder || systemRecorder;
-      
-      // Set up interval to create chunks every 3 seconds
-      intervalRef.current = setInterval(() => {
-        if (micRecorder && micRecorder.state === 'recording') {
-          micRecorder.stop();
-          micRecorder.start();
-        }
-        if (systemRecorder && systemRecorder.state === 'recording') {
-          systemRecorder.stop();
-          systemRecorder.start();
-        }
-      }, 3000);
-      
-      // Determine source type for logging
-      let sourceType = 'None';
-      if (micStream && systemStream) {
-        sourceType = 'Microphone + System Audio';
-      } else if (micStream) {
-        sourceType = 'Microphone';
-      } else if (systemStream) {
-        sourceType = 'System Audio';
-      }
-      
-      console.log(`Started recording from ${sourceType}`);
-    } catch (error) {
-      console.error('Recording error:', error);
-      
-      // Specific handling for OverconstrainedError
-      if (error instanceof OverconstrainedError || (error as any).name === 'OverconstrainedError') {
-        console.error('Device Error: The selected audio device has constraints that cannot be satisfied');
-      }
-      
-      setIsRecording(false);
-    }
-  }
-
-  // Stop recording
-  const stopRecording = () => {
-    setIsRecording(false)
-    cleanupRecording()
-    console.log('Stopped recording')
-  }
-
-  // Cleanup recording resources
-  const cleanupRecording = () => {
-    // Stop all MediaRecorders
-    if (mediaRecorderRef.current && mediaRecorderRef.current.state !== 'inactive') {
-      mediaRecorderRef.current.stop();
-    }
-    
-    // Clear interval for API chunking
-    if (intervalRef.current) {
-      clearInterval(intervalRef.current);
-      intervalRef.current = null;
-    }
-    
-    // Clear timeout for local model auto-stop
-    if (timeoutRef.current) {
-      clearTimeout(timeoutRef.current);
-      timeoutRef.current = null;
-    }
-    
-    // Stop and release all media streams
-    if (streamRef.current) {
-      streamRef.current.getTracks().forEach(track => track.stop());
-      streamRef.current = null;
-    }
-    
-    // Also check for any other active streams in the DOM and stop them
-    document.querySelectorAll('audio, video').forEach(element => {
-      const mediaElement = element as HTMLMediaElement;
-      if (mediaElement.srcObject) {
-        const stream = mediaElement.srcObject as MediaStream;
-        if (stream) {
-          stream.getTracks().forEach(track => track.stop());
-        }
-        mediaElement.srcObject = null;
-      }
-    });
-  }
-
-  // Simplified toggle source functions
-  const toggleSource = (source: 'mic' | 'system' | 'app') => {
-    if (source === 'mic') {
-      setMicEnabled(!micEnabled)
-    }
-    else if (source === 'system') {
-      const newState = !systemAudioEnabled
-      setSystemAudioEnabled(newState)
-      if (newState) setAppAudioEnabled(false)
-    }
-    else if (source === 'app') {
-      const newState = !appAudioEnabled
-      setAppAudioEnabled(newState)
-      if (newState) setSystemAudioEnabled(false)
-    }
-  }
-
-  // Update the handleScreenSelect function to be functional
-  const handleScreenSelect = (sourceId: string, sourceName: string) => {
-    setSelectedScreenId(sourceId)
-    setSelectedScreenName(sourceName)
-    setSelectedSystemAudioSource(sourceId)
-    console.log(`Selected "${sourceName}" for system audio capture`)
-  }
-
-  const handleAppSelect = (sourceId: string, sourceName: string) => {
-    setSelectedApp(sourceId)
-    console.log(`Selected "${sourceName}"`)
-  }
-
-  // Helper function to get permission status text and color
-  const getPermissionStatusInfo = () => {
-    if (microphonePermissionGranted === null) {
-      return { text: 'Checking...', bgColor: 'bg-yellow-500', textColor: 'text-white' }
-    } else if (microphonePermissionGranted === true) {
-      return { text: 'Mic ✓', bgColor: 'bg-green-500', textColor: 'text-white' }
-          } else {
-      return { text: 'Mic ✗', bgColor: 'bg-red-500', textColor: 'text-white' }
-    }
-  }
-  
-  // Helper function to get API key status text and color
-  const getApiKeyStatusInfo = () => {
-    if (apiKeyLoading) {
-      return { text: 'API: Loading...', bgColor: 'bg-yellow-500', textColor: 'text-white' }
-    } else if (openAIApiKey) {
-      return { text: 'API ✓', bgColor: 'bg-green-500', textColor: 'text-white' }
-          } else {
-      return { text: 'API ✗', bgColor: 'bg-red-500', textColor: 'text-white' }
-    }
-  }
-
-  // Update transcription status handling
-  useEffect(() => {
-    // Map transcriptionStatus to isProcessing for backwards compatibility
-    if (transcriptionStatus === 'processing') {
-      setIsProcessing(true);
-      } else {
-      setIsProcessing(false);
-    }
-
-    // Show toast for errors
-    if (transcriptionStatus === 'error' && transcriptError) {
-      console.error('Transcription Error:', transcriptError);
-    }
-  }, [transcriptionStatus, transcriptError]);
-
-  // Update the transcribeWithLocalWhisper function to return the transcription
-  const transcribeWithLocalWhisper = async (audioBlob: Blob, source: 'mic' | 'system' = 'mic'): Promise<string> => {
-    let tempFilePath = null;
-    
-    try {
-      // Only set processing status if not already processing
-      if (transcriptionStatus !== 'processing') {
-        setTranscriptionStatus('processing');
-      }
-      
-      // Check if the blob is too small to contain meaningful audio
-      if (audioBlob.size < 1000) {
-        console.log(`Skipping transcription for small audio chunk (${audioBlob.size} bytes)`);
-        return '';
-      }
-      
-      // Save the audio blob to a temporary file
-      tempFilePath = await window.electronAPI.saveTempAudio(audioBlob);
-      
-      // Get the model name from the currentSTTModel
-      const modelName = currentSTTModel.replace('local:', '').trim();
-      
-      console.log(`Processing ${audioBlob.size} bytes with local Whisper model: ${modelName}`);
-      
-      // Run the Whisper CLI on the temporary file
-      const transcription = await window.electronAPI.runWhisperCLI(tempFilePath, modelName);
-      
-      // Clean up temporary files if needed (the server now also cleans up)
-      if (tempFilePath) {
-        try {
-          await window.electronAPI.cleanupTempFile(tempFilePath);
-        } catch (cleanupError) {
-          console.warn('Error cleaning up temp file:', cleanupError);
-        }
-      }
-      
-      if (transcription && transcription.trim()) {
-        console.log('Received local transcription:', transcription);
-        
-        // Update the transcript with proper spacing
-        setTranscriptChunks(prev => {
-          // If there are previous chunks, add a space before adding the new one
-          if (prev.length > 0) {
-            return [...prev, ` ${transcription.trim()}`];
-          }
-          return [...prev, transcription.trim()];
-        });
-        
-        setTranscriptionStatus('idle');
-        return transcription.trim();
-      }
-      
-      setTranscriptionStatus('idle');
-      return '';
-    } catch (error) {
-      console.error('Error in local Whisper transcription:', error);
-      
-      // Try to clean up if we have a file path and an error occurred
-      if (tempFilePath) {
-        try {
-          await window.electronAPI.cleanupTempFile(tempFilePath);
-        } catch (cleanupError) {
-          console.warn('Error cleaning up temp file after error:', cleanupError);
-        }
-      }
-      
-      // Don't spam with error toasts for every chunk
-      // Only set error status if we're not already in an error state
-      if (transcriptionStatus !== 'error') {
-        setTranscriptionStatus('error');
-        setTranscriptError(`Error with local Whisper: ${error instanceof Error ? error.message : String(error)}`);
-      }
-      
-      return '';
-    }
-  };
-
-  // Check for BlackHole audio device availability and ensure it's actually accessible
-  const checkBlackHoleAvailability = async () => {
-    // Use type assertion to access the getSystemAudioSources method
-    const api = window.electronAPI as any;
-    
-    if (api && typeof api.getSystemAudioSources === 'function') {
-      try {
-        const sources = await api.getSystemAudioSources();
-        
-        // Filter audio sources for BlackHole
-        const blackholeSource = sources.find(
-          (source: { name: string; type: string; id: string }) => 
-            source.name.includes('BlackHole') && source.type === 'audio'
-        );
-        
-        if (blackholeSource) {
-          console.log('Found BlackHole audio device:', blackholeSource);
-          
-          // Try to actually access the device to verify it's available
-          try {
-            // Test access to the device without actually using it
-            const testStream = await navigator.mediaDevices.getUserMedia({
-              audio: {
-                deviceId: { exact: blackholeSource.id }
-              }
-            });
-            
-            // If we got here, the device is actually accessible
-            // Stop the test stream immediately
-            testStream.getTracks().forEach(track => track.stop());
-            
-            setSystemAudioBlackHoleAvailable(true);
-            setSelectedSystemAudioSource(blackholeSource.id);
-            console.log('BlackHole device verified and accessible');
-          } catch (accessError) {
-            console.error('BlackHole device found but not accessible:', accessError);
-            setSystemAudioBlackHoleAvailable(false);
-          }
-        } else {
-          console.log('BlackHole audio device not found');
-          setSystemAudioBlackHoleAvailable(false);
-        }
-      } catch (error) {
-        console.error('Error checking BlackHole availability:', error);
-        setSystemAudioBlackHoleAvailable(false);
-      }
-    }
-  }
-
-  // Function to open setup instructions
-  const showBlackHoleSetupInstructions = () => {
-    setShowBlackHoleSetupHelp(true)
-  }
-
-  // Function to close setup instructions
-  const hideBlackHoleSetupInstructions = () => {
-    setShowBlackHoleSetupHelp(false)
-  }
-
-  // Update the loadAudioDevices function to handle both device types
+  // Load audio devices
   const loadAudioDevices = async () => {
     try {
-      // Get list of audio input devices
-      const devices = await navigator.mediaDevices.enumerateDevices()
-      const audioInputs = devices.filter(device => device.kind === 'audioinput')
-      setAudioInputDevices(audioInputs)
+      const devices = await navigator.mediaDevices.enumerateDevices();
+      const allAudioDevices = devices.filter(device => 
+        device.kind === 'audioinput' || device.kind === 'audiooutput'
+      );
       
-      // Find BlackHole device for system audio
-      const blackholeDevice = audioInputs.find(device => 
-        device.label.includes('BlackHole')
-      )
+      setAudioDevices(allAudioDevices);
       
-      // Default microphone (first non-BlackHole device)
-      const defaultMic = audioInputs.find(device => 
-        !device.label.includes('BlackHole')
-      )
-      
-      // Set defaults
-      if (defaultMic) {
-        setMicInputDeviceId(defaultMic.deviceId)
-      } else if (audioInputs.length > 0) {
-        setMicInputDeviceId(audioInputs[0].deviceId)
-      }
-      
-      if (blackholeDevice) {
-        setSystemAudioDeviceId(blackholeDevice.deviceId)
-        setSelectedSystemAudioSource(blackholeDevice.deviceId)
-      } else if (audioInputs.length > 0) {
-        setSystemAudioDeviceId(audioInputs[0].deviceId)
+      // Set default device IDs if available
+      if (allAudioDevices.length > 0) {
+        const firstInput = allAudioDevices.find(d => d.kind === 'audioinput');
+        
+        // Try to find BlackHole virtual device for system audio
+        const systemAudioDevice = allAudioDevices.find(d => 
+          d.kind === 'audioinput' && 
+          d.label.includes('BlackHole') && 
+          d.label.includes('Virtual')
+        );
+        
+        // If BlackHole virtual device found, use it for system audio
+        // Otherwise fall back to any virtual device as a second option
+        // Or just use the first audio input as a last resort
+        const virtualAudioDevice = allAudioDevices.find(d => 
+          d.kind === 'audioinput' && 
+          d.label.includes('Virtual')
+        );
+        
+        if (firstInput) setMicInputDeviceId(firstInput.deviceId);
+        
+        // For system audio, prioritize BlackHole > other virtual > first device
+        if (systemAudioDevice) {
+          console.log('Found BlackHole virtual device for system audio:', systemAudioDevice.label);
+          setSystemAudioDeviceId(systemAudioDevice.deviceId);
+        } else if (virtualAudioDevice) {
+          console.log('Using virtual device for system audio:', virtualAudioDevice.label);
+          setSystemAudioDeviceId(virtualAudioDevice.deviceId);
+        } else if (firstInput) {
+          setSystemAudioDeviceId(firstInput.deviceId);
+        }
       }
     } catch (error) {
-      console.error('Error loading audio devices:', error)
+      console.log('Error loading audio devices:', error);
     }
-  }
-
-  // Add these helper functions before the component
-  const formatAudioDevicesForDropdown = (devices: MediaDeviceInfo[], type: 'microphone' | 'system') => {
-    const filteredDevices = devices.filter(device => {
-      if (type === 'microphone') {
-        return !device.label.includes('BlackHole');
-      } else {
-        return device.label.includes('BlackHole');
-      }
-    });
-
+  };
+  
+  // Format devices for dropdowns
+  const formatDevicesForDropdown = (devices: MediaDeviceInfo[], type: 'input' | 'output') => {
+    const filtered = devices.filter(d => 
+      type === 'input' ? d.kind === 'audioinput' : d.kind === 'audiooutput'
+    );
+    
     return [{
-      label: type === 'microphone' ? 'Microphone Devices' : 'System Audio Devices',
-      options: filteredDevices.map(device => ({
-        value: device.deviceId,
-        label: device.label || `Audio Device ${device.deviceId.substring(0, 4)}`,
-        title: device.label
-      }))
+      label: '',
+      options: filtered.length > 0 ? 
+        filtered.map(device => ({
+          value: device.deviceId,
+          label: device.label || `Audio Device ${device.deviceId.substring(0, 4)}`,
+        })) : 
+        [{ value: 'no-device', label: 'No devices found' }]
     }];
   };
 
-  const webGpuModelOptions = [{
-    label: 'Whisper Models',
-    options: [
-      {
-        value: 'base',
-        label: 'Whisper Base (faster, less accurate)',
-        title: 'Optimized for speed with reasonable accuracy'
-      },
-      {
-        value: 'large',
-        label: 'Whisper Large V3 Turbo (slower, more accurate)',
-        title: 'Best accuracy but requires more processing power'
+  // Toggle audio sources
+  const toggleSource = (source: 'mic' | 'system') => {
+    if (source === 'mic') {
+      const newState = !micEnabled;
+      setMicEnabled(newState);
+      
+      if (newState && isRecording) {
+        startAudioMonitoring('mic');
+        if (isDeepgramModel()) {
+          startDeepgramTranscription('mic');
+        }
+      } else {
+        stopAudioMonitoring('mic');
+        closeDeepgramConnection('mic');
       }
-    ]
-  }];
+            } else if (source === 'system') {
+      const newState = !systemAudioEnabled;
+      setSystemAudioEnabled(newState);
+      
+      if (newState && isRecording) {
+        startAudioMonitoring('system');
+        if (isDeepgramModel()) {
+          startDeepgramTranscription('system');
+        }
+      } else {
+        stopAudioMonitoring('system');
+        closeDeepgramConnection('system');
+      }
+    }
+  };
 
-  if (!isOpen) return null
+  // Check if current model is Deepgram
+  const isDeepgramModel = () => {
+    return currentSTTModel.toLowerCase().includes('deepgram');
+  };
 
-  const permissionStatus = getPermissionStatusInfo()
-  const apiKeyStatus = getApiKeyStatusInfo()
+  // Extract Deepgram model name from the full model string
+  const getDeepgramModelName = () => {
+    // Parse out model name from "deepgram-nova-3" to get "nova-3"
+    const modelMatch = currentSTTModel.match(/deepgram-(.*)/i);
+    const modelName = modelMatch && modelMatch[1] ? modelMatch[1] : 'nova-3';
+    console.log('Using Deepgram model:', modelName);
+    return modelName;
+  };
+
+  // Get formatted model name
+  const getFormattedModelName = () => {
+    if (currentSTTModel.toLowerCase().includes('deepgram')) {
+      return 'Deepgram';
+    }
+    return currentSTTModel;
+  };
+
+  // Toggle recording
+  const toggleRecording = () => {
+    const newRecordingState = !isRecording;
+    setIsRecording(newRecordingState);
+    
+    if (newRecordingState) {
+      setMicTranscript('');
+      setSystemTranscript('');
+      
+      const isDeepgram = isDeepgramModel();
+      
+      if (systemAudioEnabled) {
+        startAudioMonitoring('system');
+        if (isDeepgram && apiKeys.deepgram) {
+          startDeepgramTranscription('system');
+        }
+      }
+      
+      if (micEnabled && microphonePermissionGranted) {
+        startAudioMonitoring('mic');
+        if (isDeepgram && apiKeys.deepgram) {
+          startDeepgramTranscription('mic');
+        }
+      }
+    } else {
+      stopAudioMonitoring('system');
+      stopAudioMonitoring('mic');
+      closeDeepgramConnection('system');
+      closeDeepgramConnection('mic');
+    }
+  };
+  
+  // Setup Deepgram connection
+  const startDeepgramTranscription = async (source: 'mic' | 'system') => {
+    const deviceId = source === 'mic' ? micInputDeviceId : systemAudioDeviceId;
+    if (!deviceId || !apiKeys.deepgram) return;
+    
+    try {
+      // Close any existing connection
+      closeDeepgramConnection(source);
+      
+      // Get audio stream
+      const stream = await navigator.mediaDevices.getUserMedia({
+        audio: {
+          deviceId: { exact: deviceId }
+        }
+      });
+      
+      // Store stream reference
+      if (source === 'mic') {
+        micStreamRef.current = stream;
+      } else {
+        systemStreamRef.current = stream;
+      }
+      
+      // Create media recorder
+      const recorder = new MediaRecorder(stream, { mimeType: 'audio/webm' });
+      if (source === 'mic') {
+        micRecorderRef.current = recorder;
+      } else {
+        systemRecorderRef.current = recorder;
+      }
+      
+      // Get Deepgram model from model selection
+      const modelName = getDeepgramModelName();
+      
+      // Define all options in one place
+      const deepgramOptions = {
+        // WebSocket-specific configuration
+        encoding: 'linear16',
+        sample_rate: 16000,
+        channels: 1,
+        
+        // Transcription features
+        model: modelName,           // Put model in options for URL generation
+        smart_format: true,
+        numerals: true,
+        interim_results: true,
+        language: 'en',
+      };
+      
+      // Generate URL query parameters dynamically from the options
+      const queryParams = Object.entries(deepgramOptions)
+        .map(([key, value]) => {
+          // Skip options that shouldn't be in URL
+          if (['encoding', 'sample_rate', 'channels', 'interim_results'].includes(key)) {
+            return null;
+          }
+          // Convert camelCase to snake_case if needed
+          const paramKey = key.replace(/([A-Z])/g, '_$1').toLowerCase();
+          return `${paramKey}=${encodeURIComponent(String(value))}`;
+        })
+        .filter(Boolean) // Remove null entries
+        .join('&');
+        
+      // Connect to Deepgram using API key from settings with dynamic parameters
+      const deepgramApiUrl = `wss://api.deepgram.com/v1/listen?${queryParams}`;
+      console.log(`Connecting to Deepgram API at: ${deepgramApiUrl}`);
+      
+      const socket = new WebSocket(deepgramApiUrl, [
+        'token',
+        apiKeys.deepgram,
+      ]);
+      
+      if (source === 'mic') {
+        deepgramSocketRef.current = socket;
+      } else {
+        systemDeepgramSocketRef.current = socket;
+      }
+      
+      // Handle socket events
+      socket.onopen = () => {
+        console.log(`Deepgram connection established for ${source}`);
+        
+        // Configure Deepgram with audio-specific options
+        // Only send the options that shouldn't be in the URL
+        const socketOptions = {
+          encoding: deepgramOptions.encoding,
+          sample_rate: deepgramOptions.sample_rate,
+          channels: deepgramOptions.channels,
+          interim_results: deepgramOptions.interim_results,
+        };
+        
+        // Log raw WebSocket messages for debugging
+        const originalSend = socket.send;
+        socket.send = function(data) {
+          console.log('Sending to Deepgram:', typeof data === 'string' ? data : '[binary data]');
+          return originalSend.apply(this, [data]);
+        };
+        
+        console.log(`Configuring Deepgram with options:`, JSON.stringify(socketOptions, null, 2));
+        socket.send(JSON.stringify(socketOptions));
+      
+    // Start recording
+        recorder.start(250); // Send chunks every 250ms
+      };
+      
+      // Handle incoming transcriptions
+      socket.onmessage = (message) => {
+        const data = JSON.parse(message.data);
+        
+        // Debug log to see what's coming back from Deepgram
+        console.debug('Deepgram message:', data);
+        
+        // More detailed debugging of formatting features
+        if (data.type === 'Results' && data.channel?.alternatives?.length > 0) {
+          const transcript = data.channel.alternatives[0].transcript;
+          console.log('--- DEEPGRAM TRANSCRIPT ANALYSIS ---');
+          console.log('Raw transcript:', transcript);
+          console.log('Contains punctuation:', /[.!?,;:]/.test(transcript));
+          console.log('Contains capitalization:', /[A-Z]/.test(transcript));
+          console.log('Contains numerals formatted:', /\d+/.test(transcript));
+          console.log('Contains paragraph breaks:', transcript.includes('\n'));
+          
+          // Log detailed model information
+          if (data.metadata?.model_info) {
+            console.log('Model Details:');
+            console.log('  - Name:', data.metadata.model_info.name);
+            console.log('  - Version:', data.metadata.model_info.version);
+            console.log('  - Architecture:', data.metadata.model_info.arch);
+            console.log('Expected model:', modelName);
+          }
+          
+          console.log('Metadata:', data.metadata);
+          console.log('Is final:', data.is_final);
+          if (data.channel.alternatives[0].words) {
+            // Log a sample of words to see if they have punctuated_word property
+            const sampleWords = data.channel.alternatives[0].words.slice(0, 3);
+            console.log('Word samples (first 3):', sampleWords);
+            console.log('Has punctuated_word property:', sampleWords.some((w: any) => 'punctuated_word' in w));
+          }
+          console.log('------------------------------------');
+        }
+        
+        // Check for Results type from Deepgram response
+        if (data.type === 'Results' && 
+            data.channel && 
+            data.channel.alternatives && 
+            data.channel.alternatives.length > 0) {
+          
+          const transcript = data.channel.alternatives[0].transcript;
+          
+          if (transcript) {
+            const setTranscriptFn = source === 'mic' ? setMicTranscript : setSystemTranscript;
+            const currentCompleteTranscript = completeTranscriptRef.current[source];
+            
+            // Check for speech_final which indicates a natural pause in speaking
+            const isSpeechFinal = data.speech_final === true;
+            
+            if (!data.is_final) {
+              // Handle interim results - show what's being transcribed currently
+              setTranscriptFn(currentCompleteTranscript + (currentCompleteTranscript ? ' ' : '') + transcript);
+            } else if (data.is_final) {
+              // This is a final result - append it to our complete transcript
+              if (transcript.trim()) { // Only if there's actual content
+                const updatedTranscript = currentCompleteTranscript + 
+                  (currentCompleteTranscript ? ' ' : '') + 
+                  transcript;
+                
+                // Update our complete transcript reference
+                completeTranscriptRef.current[source] = updatedTranscript;
+                
+                // Update the displayed transcript
+                setTranscriptFn(updatedTranscript);
+                
+                // Log the complete transcript update
+                console.log(`Updated complete transcript for ${source}:`, updatedTranscript);
+              }
+            }
+            
+            // Check for speech_final which indicates a natural pause in speaking
+            if (isSpeechFinal) {
+              console.log(`Speech final detected for ${source} - natural pause in speaking`);
+            }
+          }
+        }
+      };
+      
+      socket.onerror = (error) => {
+        console.error(`Deepgram WebSocket error (${source}):`, error);
+        
+        // Attempt to reconnect after a delay if we encounter an error
+        setTimeout(() => {
+          if (isRecording) {
+            console.log(`Attempting to reconnect Deepgram for ${source}...`);
+            startDeepgramTranscription(source);
+          }
+        }, 2000);
+      };
+      
+      socket.onclose = (event) => {
+        console.log(`Deepgram connection closed for ${source}:`, event.code, event.reason);
+        
+        // Attempt to reconnect if the connection was closed unexpectedly and we're still recording
+        if (event.code !== 1000 && isRecording) {
+          console.log(`Attempting to reconnect Deepgram for ${source}...`);
+          setTimeout(() => {
+            startDeepgramTranscription(source);
+          }, 2000);
+        }
+      };
+      
+      // Send audio data to Deepgram
+      recorder.ondataavailable = (event) => {
+        if (socket.readyState === WebSocket.OPEN && event.data.size > 0) {
+          try {
+            socket.send(event.data);
+    } catch (error) {
+            console.error(`Error sending audio data to Deepgram (${source}):`, error);
+          }
+        }
+      };
+      
+    } catch (error) {
+      console.error(`Error setting up Deepgram transcription for ${source}:`, error);
+      // Display error in console
+      console.error(`Failed to start Deepgram transcription`, error);
+    }
+  };
+  
+  // Close Deepgram connection
+  const closeDeepgramConnection = (source: 'mic' | 'system') => {
+    if (source === 'mic') {
+      if (deepgramSocketRef.current) {
+        if (deepgramSocketRef.current.readyState === WebSocket.OPEN) {
+          deepgramSocketRef.current.close();
+        }
+        deepgramSocketRef.current = null;
+      }
+      
+      if (micRecorderRef.current) {
+        if (micRecorderRef.current.state !== 'inactive') {
+          micRecorderRef.current.stop();
+        }
+        micRecorderRef.current = null;
+      }
+    } else {
+      if (systemDeepgramSocketRef.current) {
+        if (systemDeepgramSocketRef.current.readyState === WebSocket.OPEN) {
+          systemDeepgramSocketRef.current.close();
+        }
+        systemDeepgramSocketRef.current = null;
+      }
+      
+      if (systemRecorderRef.current) {
+        if (systemRecorderRef.current.state !== 'inactive') {
+          systemRecorderRef.current.stop();
+        }
+        systemRecorderRef.current = null;
+      }
+    }
+  };
+  
+  // Start monitoring audio levels
+  const startAudioMonitoring = async (source: 'mic' | 'system') => {
+    if (source === 'system' && !systemAudioDeviceId) return;
+    if (source === 'mic' && !micInputDeviceId) return;
+    
+    try {
+      // Stop any existing monitoring for this source
+      stopAudioMonitoring(source);
+      
+      // Get the appropriate device ID
+      const deviceId = source === 'system' ? systemAudioDeviceId : micInputDeviceId;
+      
+      // Create new audio context
+      const audioContext = new AudioContext();
+      if (source === 'system') {
+        systemAudioContextRef.current = audioContext;
+          } else {
+        micAudioContextRef.current = audioContext;
+      }
+      
+      // Get the audio stream
+      const stream = await navigator.mediaDevices.getUserMedia({
+        audio: {
+          deviceId: { exact: deviceId }
+        }
+      });
+      
+      // Store the stream reference
+      if (source === 'system') {
+        systemStreamRef.current = stream;
+          } else {
+        micStreamRef.current = stream;
+      }
+      
+      // Create analyzer
+      const analyser = audioContext.createAnalyser();
+      analyser.fftSize = 256;
+      if (source === 'system') {
+        systemAnalyserRef.current = analyser;
+      } else {
+        micAnalyserRef.current = analyser;
+      }
+      
+      // Connect the stream to the analyzer
+      const sourceNode = audioContext.createMediaStreamSource(stream);
+      sourceNode.connect(analyser);
+      
+      // Start the monitoring loop
+      updateAudioLevel(source);
+      
+    } catch (error) {
+      console.log(`Error starting ${source} audio monitoring:`, error);
+    }
+  };
+  
+  // Stop monitoring audio levels
+  const stopAudioMonitoring = (source: 'mic' | 'system') => {
+    if (source === 'system') {
+      if (systemAnimationFrameRef.current) {
+        cancelAnimationFrame(systemAnimationFrameRef.current);
+        systemAnimationFrameRef.current = null;
+      }
+      
+      if (systemStreamRef.current) {
+        systemStreamRef.current.getTracks().forEach(track => track.stop());
+        systemStreamRef.current = null;
+      }
+      
+      if (systemAudioContextRef.current) {
+        if (systemAudioContextRef.current.state !== 'closed') {
+          systemAudioContextRef.current.close();
+        }
+        systemAudioContextRef.current = null;
+      }
+      
+      systemAnalyserRef.current = null;
+      setSystemAudioLevel(0);
+    } else {
+      if (micAnimationFrameRef.current) {
+        cancelAnimationFrame(micAnimationFrameRef.current);
+        micAnimationFrameRef.current = null;
+      }
+      
+      if (micStreamRef.current) {
+        micStreamRef.current.getTracks().forEach(track => track.stop());
+        micStreamRef.current = null;
+      }
+      
+      if (micAudioContextRef.current) {
+        if (micAudioContextRef.current.state !== 'closed') {
+          micAudioContextRef.current.close();
+        }
+        micAudioContextRef.current = null;
+      }
+      
+      micAnalyserRef.current = null;
+      setMicAudioLevel(0);
+    }
+  };
+  
+  // Update audio level in animation frame
+  const updateAudioLevel = (source: 'mic' | 'system') => {
+    const analyser = source === 'system' ? systemAnalyserRef.current : micAnalyserRef.current;
+    
+    if (!analyser) return;
+    
+    const dataArray = new Uint8Array(analyser.frequencyBinCount);
+    analyser.getByteFrequencyData(dataArray);
+    
+    // Calculate average level focusing on mid-range frequencies (20%-80% of spectrum)
+    const startIndex = Math.floor(dataArray.length * 0.2);
+    const endIndex = Math.floor(dataArray.length * 0.8);
+    let sum = 0;
+    let count = 0;
+    
+    for (let i = startIndex; i < endIndex; i++) {
+      sum += dataArray[i];
+      count++;
+    }
+    
+    const average = count > 0 ? sum / count : 0;
+    const normalizedLevel = Math.min(average / 128, 1); // Normalize to 0-1
+    
+    // Apply smoothing (weighted average with previous value)
+    const prevLevel = source === 'system' ? systemAudioLevel : micAudioLevel;
+    const smoothedLevel = prevLevel * 0.7 + normalizedLevel * 0.3;
+    
+    // Update the appropriate level
+    if (source === 'system') {
+      setSystemAudioLevel(smoothedLevel);
+      systemAnimationFrameRef.current = requestAnimationFrame(() => updateAudioLevel('system'));
+        } else {
+      setMicAudioLevel(smoothedLevel);
+      micAnimationFrameRef.current = requestAnimationFrame(() => updateAudioLevel('mic'));
+    }
+  };
+  
+  // Audio waveform component
+  const AudioWaveform = ({ audioLevel }: { audioLevel: number }) => (
+    <div className="flex items-center h-4 gap-[1px]">
+      {[...Array(16)].map((_, i) => {
+        // Create a wave pattern using sine function
+        const baseHeight = 6; // Minimum height
+        const amplitude = audioLevel * 20; // Increased amplitude for more sensitivity
+        const position = i / 15; // Normalized position (0-1)
+        
+        // Create wave effect with multiple sine waves
+        const wave1 = Math.sin(position * Math.PI * 2) * amplitude;
+        const wave2 = Math.sin(position * Math.PI * 4) * (amplitude * 0.5);
+        const height = baseHeight + Math.abs(wave1 + wave2);
+        
+        return (
+          <div 
+            key={i}
+            className="w-[2px] rounded-full"
+            style={{ 
+              height: `${height}px`,
+              opacity: Math.min(0.3 + audioLevel * 0.7, 1), // More visible at lower levels
+              backgroundColor: '#ffffff', // Always white
+              transition: 'height 50ms, opacity 50ms' // Short transition for smoothness
+            }}
+          />
+        );
+      })}
+    </div>
+  );
+
+  // Function to extract the most recent question from the transcript
+  const extractLatestQuestion = (transcript: string): string => {
+    if (!transcript || transcript.trim().length === 0) return '';
+    
+    // Split by common question delimiters (period, question mark, exclamation)
+    const segments = transcript.split(/(?<=[.?!])\s+/);
+    
+    // Get the last segment that might be a question
+    let lastSegment = segments[segments.length - 1].trim();
+    
+    // If the last segment is very short, also include the previous segment for context
+    if (lastSegment.length < 15 && segments.length > 1) {
+      lastSegment = segments[segments.length - 2].trim() + ' ' + lastSegment;
+    }
+    
+    // Check if looks like a question or a request
+    const isQuestion = lastSegment.endsWith('?') || 
+                       /^(can you|could you|please|tell me|what|why|how|when|where|who|describe)/i.test(lastSegment);
+    
+    // If it looks like a question, return it. Otherwise, return the last 1-2 sentences
+    if (isQuestion) {
+      return lastSegment;
+    } else {
+      // Get the last 1-2 sentences as context
+      const sentences = transcript.match(/[^.!?]+[.!?]+/g) || [];
+      if (sentences.length === 0) return transcript;
+      
+      if (sentences.length === 1 || sentences[sentences.length - 1].length > 50) {
+        return sentences[sentences.length - 1].trim();
+      } else {
+        return (sentences[sentences.length - 2] + ' ' + sentences[sentences.length - 1]).trim();
+      }
+    }
+  };
+  
+  // Function to generate AI response based on interviewer's question
+  const generateAIResponse = async () => {
+    if (!systemTranscript || systemTranscript === lastProcessedTranscript || systemTranscript.trim().length < 10) {
+      return;
+    }
+    
+    try {
+      setIsGeneratingResponse(true);
+      
+      // Extract the latest question from the transcript
+      const latestQuestion = extractLatestQuestion(systemTranscript);
+      
+      if (latestQuestion.trim().length < 10) {
+        console.log("Latest question segment is too short, waiting for more content");
+        setIsGeneratingResponse(false);
+        return;
+      }
+      
+      // Call the Teleprompter API to generate a response with just the latest question
+      console.log("Calling teleprompter API with latest question:", latestQuestion.substring(0, 50) + "...");
+      const result = await window.electronAPI.generateTeleprompterResponse(latestQuestion);
+      
+      if (result.success && result.data) {
+        setAiResponse(result.data);
+        setLastProcessedTranscript(systemTranscript);
+      } else if (result.error) {
+        console.error('Error generating AI response:', result.error);
+        // Show simple error in the response area instead of leaving it blank
+        setAiResponse(`I couldn't generate a response at this time. The system reported: ${result.error}`);
+      }
+      
+      setIsGeneratingResponse(false);
+      
+    } catch (error) {
+      console.error('Error generating AI response:', error);
+      // Show simple error in the response area
+      setAiResponse("I couldn't generate a response due to a technical issue. Please try again later.");
+      setIsGeneratingResponse(false);
+    }
+  };
+  
+  // Update the useEffect that triggers AI response generation
+  // Add effect to generate AI response when system transcript changes significantly
+  useEffect(() => {
+    // Clear any existing timeout when transcript changes
+    if (transcriptTimeoutRef.current) {
+      clearTimeout(transcriptTimeoutRef.current);
+      transcriptTimeoutRef.current = null;
+    }
+    
+    if (!systemTranscript || systemTranscript === lastProcessedTranscript || systemTranscript.trim().length < 10) {
+      return;
+    }
+    
+    // Extract the latest question segment
+    const latestQuestion = extractLatestQuestion(systemTranscript);
+    
+    // Check if transcript appears to be a question or complete statement
+    const isQuestionOrStatement = /\?|\.|\!$/.test(latestQuestion.trim()) || 
+      latestQuestion.toLowerCase().includes('tell me about') ||
+      latestQuestion.toLowerCase().includes('what is') ||
+      latestQuestion.toLowerCase().includes('how would you');
+    
+    // Set a delay of 2.5 seconds after last word to generate response
+    transcriptTimeoutRef.current = setTimeout(() => {
+      if (isQuestionOrStatement) {
+        generateAIResponse();
+      }
+    }, 2500); // 2.5 seconds delay
+    
+    // Clean up timeout on component unmount
+    return () => {
+      if (transcriptTimeoutRef.current) {
+        clearTimeout(transcriptTimeoutRef.current);
+        transcriptTimeoutRef.current = null;
+      }
+    };
+  }, [systemTranscript]);
+
+  if (!isOpen) return null;
+
+  const inputDevices = audioDevices.filter(d => d.kind === 'audioinput');
+  const outputDevices = audioDevices.filter(d => d.kind === 'audiooutput');
+  const modelName = getFormattedModelName();
+  const isModelSupported = isDeepgramModel() && apiKeys.deepgram;
 
   return (
     <div 
@@ -1005,86 +824,15 @@ const STTPanel: React.FC<STTPanelProps> = ({
       style={{ zIndex: 100 }}
       onClick={e => e.stopPropagation()}
     >
-      {/* Add transparent bridge */}
       <div className="absolute -top-2 left-0 w-full h-2" />
-      <div className="p-3 text-xs bg-black/80 backdrop-blur-md rounded-lg border border-white/10 text-white/90 shadow-lg">
+      <div className="text-xs text-white/90 backdrop-blur-md bg-black/60 rounded-lg py-2 px-4">
         <div className="space-y-4">
-          {/* Header */}
           <div className="flex justify-between items-center">
             <h3 className="font-medium text-white/90">
               Teleprompter
             </h3>
           </div>
           
-          {/* WebGPU toggle switch and model selector if available */}
-          {webGpuAvailable && (
-            <div className="space-y-2">
-              <div className="flex items-center justify-between">
-                <div className="flex items-center gap-2">
-                  <svg
-                    xmlns="http://www.w3.org/2000/svg"
-                    viewBox="0 0 24 24"
-                    fill="none"
-                    stroke="currentColor"
-                    strokeWidth="2"
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                    className="w-4 h-4 text-white/70"
-                  >
-                    <rect x="4" y="4" width="16" height="16" rx="2" ry="2"></rect>
-                    <rect x="9" y="9" width="6" height="6"></rect>
-                    <line x1="9" y1="2" x2="9" y2="4"></line>
-                    <line x1="15" y1="2" x2="15" y2="4"></line>
-                    <line x1="9" y1="20" x2="9" y2="22"></line>
-                    <line x1="15" y1="20" x2="15" y2="22"></line>
-                    <line x1="20" y1="9" x2="22" y2="9"></line>
-                    <line x1="20" y1="14" x2="22" y2="14"></line>
-                    <line x1="2" y1="9" x2="4" y2="9"></line>
-                    <line x1="2" y1="14" x2="4" y2="14"></line>
-                  </svg>
-                  <span>
-                    WebGPU
-                    {webGpuLoading && <span className="text-xs text-white/50"> (Loading...)</span>}
-                  </span>
-                </div>
-                <button 
-                  onClick={() => setWebGpuEnabled(!webGpuEnabled)}
-                  disabled={webGpuLoading || isRecording || isProcessing}
-                  className={`relative inline-flex h-5 w-10 flex-shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none ${
-                    webGpuEnabled ? 'bg-green-500/50' : 'bg-gray-500/30'
-                  } ${(webGpuLoading || isRecording || isProcessing) ? 'opacity-50 cursor-not-allowed' : ''}`}
-                >
-                  <span 
-                    className={`pointer-events-none inline-block h-4 w-4 transform rounded-full bg-white shadow-lg ring-0 transition duration-200 ease-in-out ${
-                      webGpuEnabled ? 'translate-x-5' : 'translate-x-0'
-                    }`} 
-                  />
-                </button>
-              </div>
-              
-              {/* Model selector dropdown */}
-              {webGpuEnabled && (
-                <CustomDropdown
-                  value={webGpuModel}
-                  onChange={(value) => {
-                    if (webGpuWorkerRef.current) {
-                      webGpuWorkerRef.current.terminate();
-                      webGpuWorkerRef.current = null;
-                    }
-                    setWebGpuModel(value as 'base' | 'large');
-                    setWebGpuLoaded(false);
-                    setWebGpuLoading(false);
-                    setWebGpuLoadingProgress([]);
-                  }}
-                  options={webGpuModelOptions}
-                  placeholder="Select Whisper model"
-                  className="w-full"
-                />
-              )}
-            </div>
-          )}
-          
-          {/* Audio Source Toggles */}
           <div className="space-y-3">
             {/* Microphone Toggle */}
             <div className="flex items-center justify-between">
@@ -1104,14 +852,17 @@ const STTPanel: React.FC<STTPanelProps> = ({
                   <line x1="12" y1="19" x2="12" y2="23" />
                   <line x1="8" y1="23" x2="16" y2="23" />
                 </svg>
-                <span>Microphone</span>
+                <span className="text-[11px] leading-none">Microphone</span>
+                {microphonePermissionGranted === false && (
+                  <span className="text-xs text-red-400 ml-1">(No permission)</span>
+                )}
               </div>
               <button 
                 onClick={() => toggleSource('mic')}
-                disabled={isRecording || isProcessing}
+                disabled={isRecording || microphonePermissionGranted === false}
                 className={`relative inline-flex h-5 w-10 flex-shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none ${
                   micEnabled ? 'bg-green-500/50' : 'bg-gray-500/30'
-                } ${(isRecording || isProcessing) ? 'opacity-50 cursor-not-allowed' : ''}`}
+                } ${isRecording || microphonePermissionGranted === false ? 'opacity-50 cursor-not-allowed' : ''}`}
               >
                 <span 
                   className={`pointer-events-none inline-block h-4 w-4 transform rounded-full bg-white shadow-lg ring-0 transition duration-200 ease-in-out ${
@@ -1121,24 +872,21 @@ const STTPanel: React.FC<STTPanelProps> = ({
               </button>
             </div>
             
-            {/* Audio input device selector for microphone */}
+            {/* Microphone device selector */}
             {micEnabled && (
               <div className="mt-1">
                 <CustomDropdown
                   value={micInputDeviceId}
                   onChange={setMicInputDeviceId}
-                  options={formatAudioDevicesForDropdown(audioInputDevices, 'microphone')}
-                  placeholder="Select microphone device"
+                  options={formatDevicesForDropdown(audioDevices, 'input')}
+                  placeholder="Select microphone"
                   className="w-full"
                 />
               </div>
             )}
             
-            {/* Separator */}
-            <div className="my-2 border-t border-white/10"></div>
-            
-            {/* Share Entire Screen Toggle */}
-            <div className={`flex items-center justify-between ${!isElectronAvailable ? 'opacity-50' : ''}`}>
+            {/* System Audio Toggle */}
+            <div className="flex items-center justify-between">
               <div className="flex items-center gap-2">
                 <svg
                   xmlns="http://www.w3.org/2000/svg"
@@ -1150,21 +898,21 @@ const STTPanel: React.FC<STTPanelProps> = ({
                   strokeLinejoin="round"
                   className="w-4 h-4 text-white/70"
                 >
-                  <rect x="2" y="3" width="20" height="14" rx="2" ry="2" />
-                  <path d="M8 21h8" />
-                  <path d="M12 17v4" />
+                  <polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"></polygon>
+                  <path d="M15.54 8.46a5 5 0 0 1 0 7.07"></path>
+                  <path d="M19.07 4.93a10 10 0 0 1 0 14.14"></path>
                 </svg>
-                <span>
-                  System Audio
-                  {!isElectronAvailable && <span className="text-xs text-white/50"> (Requires Electron)</span>}
-                </span>
+                <span className="text-[11px] leading-none">System Audio</span>
+                {outputDevices.length === 0 && (
+                  <span className="text-xs text-yellow-400 ml-1">(No devices found)</span>
+                )}
               </div>
               <button 
                 onClick={() => toggleSource('system')}
-                disabled={!isElectronAvailable || isRecording || isProcessing}
+                disabled={isRecording || outputDevices.length === 0}
                 className={`relative inline-flex h-5 w-10 flex-shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none ${
                   systemAudioEnabled ? 'bg-green-500/50' : 'bg-gray-500/30'
-                } ${(!isElectronAvailable || isRecording || isProcessing) ? 'opacity-50 cursor-not-allowed' : ''}`}
+                } ${isRecording || outputDevices.length === 0 ? 'opacity-50 cursor-not-allowed' : ''}`}
               >
                 <span 
                   className={`pointer-events-none inline-block h-4 w-4 transform rounded-full bg-white shadow-lg ring-0 transition duration-200 ease-in-out ${
@@ -1174,34 +922,34 @@ const STTPanel: React.FC<STTPanelProps> = ({
               </button>
             </div>
             
-            {/* Audio input device selector for system audio */}
-            {systemAudioEnabled && (
+            {/* System audio device selector */}
+            {systemAudioEnabled && outputDevices.length > 0 && (
               <div className="mt-1">
                 <CustomDropdown
                   value={systemAudioDeviceId}
-                  onChange={(value) => {
-                    setSystemAudioDeviceId(value);
-                    setSelectedSystemAudioSource(value);
-                  }}
-                  options={formatAudioDevicesForDropdown(audioInputDevices, 'system')}
-                  placeholder="Select system audio device"
+                  onChange={setSystemAudioDeviceId}
+                  options={formatDevicesForDropdown(audioDevices, 'output')}
+                  placeholder="Select system audio"
                   className="w-full"
                 />
               </div>
             )}
           </div>
           
-          {/* Transcription Area - Exact implementation from webgpu-whisper */}
+          {/* Transcription Area */}
           <div className="space-y-2">
             {/* Microphone Transcription */}
             {micEnabled && (
               <div className="space-y-1">
             <div className="flex justify-between items-center">
                   <p className="text-xs text-white/70">Microphone Transcription:</p>
+                  
+                  {/* Microphone Audio Level Indicator */}
+                  {isRecording && <AudioWaveform audioLevel={micAudioLevel} />}
             </div>
                 <div className="relative">
                   <p className="w-full h-[80px] overflow-y-auto overflow-wrap-anywhere border border-gray-700 rounded-lg p-2 bg-black/50 text-white/90">
-                    {micTranscript || (isRecording ? "Listening to microphone..." : "")}
+                    {micTranscript}
                   </p>
                 </div>
             </div>
@@ -1212,117 +960,86 @@ const STTPanel: React.FC<STTPanelProps> = ({
               <div className="space-y-1">
                 <div className="flex justify-between items-center">
                   <p className="text-xs text-white/70">System Audio Transcription:</p>
+                  
+                  {/* System Audio Level Indicator */}
+                  {isRecording && <AudioWaveform audioLevel={systemAudioLevel} />}
                 </div>
                 <div className="relative">
                   <p className="w-full h-[80px] overflow-y-auto overflow-wrap-anywhere border border-gray-700 rounded-lg p-2 bg-black/50 text-white/90">
-                    {systemTranscript || (isRecording ? "Listening to system audio..." : "")}
+                    {systemTranscript}
                   </p>
                 </div>
               </div>
             )}
-          </div>
+            
+            {/* AI Interview Assistant */}
+            {systemAudioEnabled && (
+              <div className="space-y-1 mt-4 border-t border-gray-700 pt-3">
+                <div className="flex justify-between items-center">
+                  <p className="text-xs text-white/70">AI Suggested Response:</p>
+                </div>
           
-          {/* WebGPU loading indicator */}
-          {webGpuLoading && (
-            <div className="text-xs text-white/70">
-              <p>Loading WebGPU Whisper model... Please wait.</p>
-              {webGpuCacheInfo && (
-                <p className="mt-1 text-xs text-blue-300">
-                  Caching to: {webGpuCacheInfo.location} 
-                  {webGpuCacheInfo.environment === 'Electron' ? ' (in Electron)' : ''}
-                </p>
-              )}
-              {webGpuLoadingProgress.map((item, index) => (
-                <div key={index} className="mt-1">
-                  <div className="flex justify-between">
-                    <span className="text-xs text-white/70">{item.file.split('/').pop()}</span>
-                    {item.progress && (
-                      <span className="text-xs text-green-400">
-                        {Math.round(item.progress * 100)}%
+                <div className="relative">
+                  <div className="w-full h-[120px] overflow-y-auto overflow-wrap-anywhere border border-indigo-700/40 rounded-lg p-2 bg-indigo-950/30 text-white/90">
+                    {isGeneratingResponse ? (
+                      <div className="flex items-center justify-center h-full">
+                        <div className="flex space-x-1 items-center">
+                          <div className="w-1.5 h-1.5 bg-indigo-500/70 rounded-full animate-bounce" style={{ animationDelay: '0ms' }}></div>
+                          <div className="w-1.5 h-1.5 bg-indigo-500/70 rounded-full animate-bounce" style={{ animationDelay: '150ms' }}></div>
+                          <div className="w-1.5 h-1.5 bg-indigo-500/70 rounded-full animate-bounce" style={{ animationDelay: '300ms' }}></div>
+                          <span className="ml-2 text-sm text-indigo-300/90">Generating response...</span>
+                        </div>
+                      </div>
+                    ) : aiResponse ? (
+                      aiResponse
+                    ) : (
+                      <span className="text-white/50 italic">
+                        The AI assistant will suggest responses to interview questions detected from the system audio.
                       </span>
                     )}
                   </div>
-                  {item.progress && (
-                    <div className="h-1 bg-gray-700 rounded overflow-hidden mt-1">
-                      <div 
-                        className="bg-green-400 h-full" 
-                        style={{ width: `${Math.round(item.progress * 100)}%` }}
-                      />
-                    </div>
-                  )}
                 </div>
-              ))}
-              {webGpuTps && (
-                <div className="text-right mt-1">
-                  <span className="text-xs text-green-400">{webGpuTps.toFixed(2)} tok/s</span>
+              </div>
+            )}
                 </div>
-              )}
-            </div>
-          )}
           
           {/* Controls */}
-          <div className="flex justify-between items-center">
-            <div className="flex items-center gap-2">
-              {isRecording && (
-                <div className="flex items-center gap-1.5 text-red-400">
-                  <span className="relative flex h-2.5 w-2.5">
-                    <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-red-400 opacity-75"></span>
-                    <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-red-500"></span>
-                  </span>
-                  <span className="text-xs font-medium">Listening</span>
-                </div>
-              )}
-              
-              {/* Request Permission Button */}
-              {microphonePermissionGranted === false && (
-                <button
-                  onClick={requestMicrophonePermission}
-                  className="px-2 py-1 rounded-md text-[10px] font-medium bg-blue-500 text-white hover:bg-blue-600 transition-colors"
-                  title="Request Microphone Permission"
-                >
-                  Allow Mic
-                </button>
-              )}
-            </div>
-            <div className="flex gap-2">
-              {/* Recording button */}
+          <div className="flex justify-center">
                 <button
                 onClick={toggleRecording}
-                disabled={microphonePermissionGranted === false || isProcessing || microphonePermissionGranted === null || (!openAIApiKey && !apiKeyLoading) || apiKeyLoading}
-                className={`
-                  py-2 px-4 rounded-lg flex items-center gap-2 transition-colors
-                  ${isRecording ? 'bg-red-500 hover:bg-red-600' : 'bg-green-500 hover:bg-green-600'}
-                  ${(microphonePermissionGranted === false || isProcessing || microphonePermissionGranted === null || (!openAIApiKey && !apiKeyLoading) || apiKeyLoading) ? 'opacity-50 cursor-not-allowed' : ''}
-                `}
-                aria-label={isRecording ? "Stop recording" : "Start recording"}
+              className={`flex items-center gap-2 px-3 py-1.5 rounded-full transition-colors ${
+                isRecording
+                  ? 'bg-red-500/50 hover:bg-red-500/70'
+                  : 'bg-green-500/50 hover:bg-green-500/70'
+              }`}
+              disabled={(!micEnabled && !systemAudioEnabled) || 
+                         (micEnabled && microphonePermissionGranted === false) ||
+                         (systemAudioEnabled && outputDevices.length === 0)}
               >
                 {isRecording ? (
                   <>
-                    {/* White square for stop button */}
-                    <div className="w-3 h-3 bg-white"></div>
-                    <span>Stop</span>
+                  <span className="block w-3 h-3 bg-red-500 rounded-sm"></span>
+                  <span>Stop Recording</span>
                   </>
                 ) : (
                   <>
                     <svg
                       xmlns="http://www.w3.org/2000/svg"
+                    className="w-3 h-3 text-white"
                       viewBox="0 0 24 24"
                       fill="none"
                       stroke="currentColor"
                       strokeWidth="2"
                       strokeLinecap="round"
                       strokeLinejoin="round"
-                      className="w-4 h-4"
                     >
-                      <path d="M12 2a3 3 0 0 0-3 3v7a3 3 0 0 0 6 0V5a3 3 0 0 0-3-3Z" />
-                      <path d="M19 10v2a7 7 0 0 1-14 0v-2" />
-                      <line x1="12" x2="12" y1="19" y2="22" />
+                    <circle cx="12" cy="12" r="10" />
+                    <path d="M12 8v8M8 12h8" />
                     </svg>
-                    <span>Start Listening</span>
+                  <span>Start Recording</span>
                   </>
                 )}
               </button>
-            </div>
           </div>
         </div>
       </div>

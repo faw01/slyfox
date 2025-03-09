@@ -90,7 +90,7 @@ function App() {
   // Initialize STT model
   useState<string>(() => {
     if (!window.__STT_MODEL__) {
-      window.__STT_MODEL__ = "whisper-1"
+      window.__STT_MODEL__ = "deepgram-nova-3"
     }
     return window.__STT_MODEL__
   })

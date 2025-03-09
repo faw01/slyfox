@@ -59,8 +59,8 @@ const STTModelSelector: React.FC<STTModelSelectorProps> = ({
   useEffect(() => {
     // Initialize default STT model if not set
     if (!window.__STT_MODEL__) {
-      window.__STT_MODEL__ = 'whisper-1'
-      setSTTModel('whisper-1')
+      window.__STT_MODEL__ = 'deepgram-nova-3'
+      setSTTModel('deepgram-nova-3')
       showToast('STT Model', `Using ${window.__STT_MODEL__}`, 'neutral')
     }
   }, [])
