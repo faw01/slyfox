@@ -607,7 +607,7 @@ const STTPanel: React.FC<STTPanelProps> = ({
       
       systemAnalyserRef.current = null;
       setSystemAudioLevel(0);
-    } else {
+          } else {
       if (micAnimationFrameRef.current) {
         cancelAnimationFrame(micAnimationFrameRef.current);
         micAnimationFrameRef.current = null;
@@ -719,7 +719,7 @@ const STTPanel: React.FC<STTPanelProps> = ({
     // If it looks like a question, return it. Otherwise, return the last 1-2 sentences
     if (isQuestion) {
       return lastSegment;
-    } else {
+        } else {
       // Get the last 1-2 sentences as context
       const sentences = transcript.match(/[^.!?]+[.!?]+/g) || [];
       if (sentences.length === 0) return transcript;
@@ -825,10 +825,10 @@ const STTPanel: React.FC<STTPanelProps> = ({
       onClick={e => e.stopPropagation()}
     >
       <div className="absolute -top-2 left-0 w-full h-2" />
-      <div className="text-xs text-white/90 backdrop-blur-md bg-black/60 rounded-lg py-2 px-4">
+      <div className="text-xs text-white/90 backdrop-blur-md bg-black/60 rounded-lg py-2 px-4 cursor-default select-none">
         <div className="space-y-4">
           <div className="flex justify-between items-center">
-            <h3 className="font-medium text-white/90">
+            <h3 className="font-medium text-white/90 select-none cursor-default">
               Teleprompter
             </h3>
           </div>
@@ -852,17 +852,17 @@ const STTPanel: React.FC<STTPanelProps> = ({
                   <line x1="12" y1="19" x2="12" y2="23" />
                   <line x1="8" y1="23" x2="16" y2="23" />
                 </svg>
-                <span className="text-[11px] leading-none">Microphone</span>
+                <span className="text-[11px] leading-none select-none cursor-default">Microphone</span>
                 {microphonePermissionGranted === false && (
-                  <span className="text-xs text-red-400 ml-1">(No permission)</span>
+                  <span className="text-xs text-red-400 ml-1 select-none cursor-default">(No permission)</span>
                 )}
               </div>
               <button 
                 onClick={() => toggleSource('mic')}
                 disabled={isRecording || microphonePermissionGranted === false}
-                className={`relative inline-flex h-5 w-10 flex-shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none ${
+                className={`relative inline-flex h-5 w-10 flex-shrink-0 cursor-default rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none ${
                   micEnabled ? 'bg-green-500/50' : 'bg-gray-500/30'
-                } ${isRecording || microphonePermissionGranted === false ? 'opacity-50 cursor-not-allowed' : ''}`}
+                } ${isRecording || microphonePermissionGranted === false ? 'opacity-50' : ''}`}
               >
                 <span 
                   className={`pointer-events-none inline-block h-4 w-4 transform rounded-full bg-white shadow-lg ring-0 transition duration-200 ease-in-out ${
@@ -880,7 +880,7 @@ const STTPanel: React.FC<STTPanelProps> = ({
                   onChange={setMicInputDeviceId}
                   options={formatDevicesForDropdown(audioDevices, 'input')}
                   placeholder="Select microphone"
-                  className="w-full"
+                  className="w-full cursor-default"
                 />
               </div>
             )}
@@ -902,17 +902,17 @@ const STTPanel: React.FC<STTPanelProps> = ({
                   <path d="M15.54 8.46a5 5 0 0 1 0 7.07"></path>
                   <path d="M19.07 4.93a10 10 0 0 1 0 14.14"></path>
                 </svg>
-                <span className="text-[11px] leading-none">System Audio</span>
+                <span className="text-[11px] leading-none select-none cursor-default">System Audio</span>
                 {outputDevices.length === 0 && (
-                  <span className="text-xs text-yellow-400 ml-1">(No devices found)</span>
+                  <span className="text-xs text-yellow-400 ml-1 select-none cursor-default">(No devices found)</span>
                 )}
               </div>
               <button 
                 onClick={() => toggleSource('system')}
                 disabled={isRecording || outputDevices.length === 0}
-                className={`relative inline-flex h-5 w-10 flex-shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none ${
+                className={`relative inline-flex h-5 w-10 flex-shrink-0 cursor-default rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none ${
                   systemAudioEnabled ? 'bg-green-500/50' : 'bg-gray-500/30'
-                } ${isRecording || outputDevices.length === 0 ? 'opacity-50 cursor-not-allowed' : ''}`}
+                } ${isRecording || outputDevices.length === 0 ? 'opacity-50' : ''}`}
               >
                 <span 
                   className={`pointer-events-none inline-block h-4 w-4 transform rounded-full bg-white shadow-lg ring-0 transition duration-200 ease-in-out ${
@@ -930,7 +930,7 @@ const STTPanel: React.FC<STTPanelProps> = ({
                   onChange={setSystemAudioDeviceId}
                   options={formatDevicesForDropdown(audioDevices, 'output')}
                   placeholder="Select system audio"
-                  className="w-full"
+                  className="w-full cursor-default"
                 />
               </div>
             )}
@@ -942,13 +942,13 @@ const STTPanel: React.FC<STTPanelProps> = ({
             {micEnabled && (
               <div className="space-y-1">
             <div className="flex justify-between items-center">
-                  <p className="text-xs text-white/70">Microphone Transcription:</p>
+                  <p className="text-xs text-white/70 select-none cursor-default">Microphone Transcription:</p>
                   
                   {/* Microphone Audio Level Indicator */}
                   {isRecording && <AudioWaveform audioLevel={micAudioLevel} />}
             </div>
                 <div className="relative">
-                  <p className="w-full h-[80px] overflow-y-auto overflow-wrap-anywhere border border-gray-700 rounded-lg p-2 bg-black/50 text-white/90">
+                  <p className="w-full h-[80px] overflow-y-auto overflow-wrap-anywhere border border-gray-700 rounded-lg p-2 bg-black/50 text-white/90 select-none cursor-default">
                     {micTranscript}
                   </p>
                 </div>
@@ -959,13 +959,13 @@ const STTPanel: React.FC<STTPanelProps> = ({
             {systemAudioEnabled && (
               <div className="space-y-1">
                 <div className="flex justify-between items-center">
-                  <p className="text-xs text-white/70">System Audio Transcription:</p>
+                  <p className="text-xs text-white/70 select-none cursor-default">System Audio Transcription:</p>
                   
                   {/* System Audio Level Indicator */}
                   {isRecording && <AudioWaveform audioLevel={systemAudioLevel} />}
                 </div>
                 <div className="relative">
-                  <p className="w-full h-[80px] overflow-y-auto overflow-wrap-anywhere border border-gray-700 rounded-lg p-2 bg-black/50 text-white/90">
+                  <p className="w-full h-[80px] overflow-y-auto overflow-wrap-anywhere border border-gray-700 rounded-lg p-2 bg-black/50 text-white/90 select-none cursor-default">
                     {systemTranscript}
                   </p>
                 </div>
@@ -976,38 +976,38 @@ const STTPanel: React.FC<STTPanelProps> = ({
             {systemAudioEnabled && (
               <div className="space-y-1 mt-4 border-t border-gray-700 pt-3">
                 <div className="flex justify-between items-center">
-                  <p className="text-xs text-white/70">AI Suggested Response:</p>
-                </div>
+                  <p className="text-xs text-white/70 select-none cursor-default">AI Suggested Response:</p>
+          </div>
           
                 <div className="relative">
-                  <div className="w-full h-[120px] overflow-y-auto overflow-wrap-anywhere border border-indigo-700/40 rounded-lg p-2 bg-indigo-950/30 text-white/90">
+                  <div className="w-full h-[120px] overflow-y-auto overflow-wrap-anywhere border border-indigo-700/40 rounded-lg p-2 bg-indigo-950/30 text-white/90 select-none cursor-default">
                     {isGeneratingResponse ? (
                       <div className="flex items-center justify-center h-full">
                         <div className="flex space-x-1 items-center">
                           <div className="w-1.5 h-1.5 bg-indigo-500/70 rounded-full animate-bounce" style={{ animationDelay: '0ms' }}></div>
                           <div className="w-1.5 h-1.5 bg-indigo-500/70 rounded-full animate-bounce" style={{ animationDelay: '150ms' }}></div>
                           <div className="w-1.5 h-1.5 bg-indigo-500/70 rounded-full animate-bounce" style={{ animationDelay: '300ms' }}></div>
-                          <span className="ml-2 text-sm text-indigo-300/90">Generating response...</span>
-                        </div>
-                      </div>
+                          <span className="ml-2 text-sm text-indigo-300/90 select-none cursor-default">Generating response...</span>
+                  </div>
+                    </div>
                     ) : aiResponse ? (
                       aiResponse
                     ) : (
-                      <span className="text-white/50 italic">
+                      <span className="text-white/50 italic select-none cursor-default">
                         The AI assistant will suggest responses to interview questions detected from the system audio.
                       </span>
-                    )}
-                  </div>
+                  )}
                 </div>
-              </div>
-            )}
+                </div>
+            </div>
+          )}
                 </div>
           
           {/* Controls */}
           <div className="flex justify-center">
                 <button
                 onClick={toggleRecording}
-              className={`flex items-center gap-2 px-3 py-1.5 rounded-full transition-colors ${
+              className={`flex items-center gap-2 px-3 py-1.5 rounded-full transition-colors cursor-default select-none ${
                 isRecording
                   ? 'bg-red-500/50 hover:bg-red-500/70'
                   : 'bg-green-500/50 hover:bg-green-500/70'
@@ -1019,7 +1019,7 @@ const STTPanel: React.FC<STTPanelProps> = ({
                 {isRecording ? (
                   <>
                   <span className="block w-3 h-3 bg-red-500 rounded-sm"></span>
-                  <span>Stop Recording</span>
+                  <span className="select-none cursor-default">Stop Recording</span>
                   </>
                 ) : (
                   <>
@@ -1036,7 +1036,7 @@ const STTPanel: React.FC<STTPanelProps> = ({
                     <circle cx="12" cy="12" r="10" />
                     <path d="M12 8v8M8 12h8" />
                     </svg>
-                  <span>Start Recording</span>
+                  <span className="select-none cursor-default">Start Recording</span>
                   </>
                 )}
               </button>

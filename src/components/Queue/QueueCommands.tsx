@@ -97,14 +97,14 @@ const QueueCommands: React.FC<QueueCommandsProps> = ({
               }
             }}
           >
-            <span className="text-[11px] leading-none truncate cursor-default">
+            <span className="text-[11px] leading-none truncate select-none cursor-default">
               Screenshot
             </span>
             <div className="flex gap-1">
-              <button className="bg-white/10 rounded-md px-1.5 py-1 text-[11px] leading-none text-white/70 cursor-default">
+              <button className="bg-white/10 rounded-md px-1.5 py-1 text-[11px] leading-none text-white/70 select-none cursor-default">
                 {COMMAND_KEY}
               </button>
-              <button className="bg-white/10 rounded-md px-1.5 py-1 text-[11px] leading-none text-white/70 cursor-default">
+              <button className="bg-white/10 rounded-md px-1.5 py-1 text-[11px] leading-none text-white/70 select-none cursor-default">
                 H
               </button>
             </div>
@@ -143,12 +143,12 @@ const QueueCommands: React.FC<QueueCommandsProps> = ({
               }}
             >
               <div className="flex items-center justify-between">
-                <span className="text-[11px] leading-none cursor-default">Solve </span>
+                <span className="text-[11px] leading-none select-none cursor-default">Solve </span>
                 <div className="flex gap-1 ml-2">
-                  <button className="bg-white/10 rounded-md px-1.5 py-1 text-[11px] leading-none text-white/70 cursor-default">
+                  <button className="bg-white/10 rounded-md px-1.5 py-1 text-[11px] leading-none text-white/70 select-none cursor-default">
                     {COMMAND_KEY}
                   </button>
-                  <button className="bg-white/10 rounded-md px-1.5 py-1 text-[11px] leading-none text-white/70 cursor-default">
+                  <button className="bg-white/10 rounded-md px-1.5 py-1 text-[11px] leading-none text-white/70 select-none cursor-default">
                     ↵
                   </button>
                 </div>
@@ -165,14 +165,14 @@ const QueueCommands: React.FC<QueueCommandsProps> = ({
               className="flex items-center gap-2 rounded px-2 py-1.5 hover:bg-white/10 transition-colors cursor-default"
               onClick={() => setIsSTTPanelOpen(!isSTTPanelOpen)}
             >
-              <span className="text-[11px] leading-none truncate cursor-default">
+              <span className="text-[11px] leading-none truncate select-none cursor-default">
                 Teleprompter
               </span>
               <div className="flex gap-1">
-                <button className="bg-white/10 rounded-md px-1.5 py-1 text-[11px] leading-none text-white/70 cursor-default">
+                <button className="bg-white/10 rounded-md px-1.5 py-1 text-[11px] leading-none text-white/70 select-none cursor-default">
                   {COMMAND_KEY}
                 </button>
-                <button className="bg-white/10 rounded-md px-1.5 py-1 text-[11px] leading-none text-white/70 cursor-default">
+                <button className="bg-white/10 rounded-md px-1.5 py-1 text-[11px] leading-none text-white/70 select-none cursor-default">
                   T
                 </button>
               </div>
@@ -255,15 +255,15 @@ const QueueCommands: React.FC<QueueCommandsProps> = ({
                 <div className="text-xs text-white/90 backdrop-blur-md bg-black/60 rounded-lg py-2 px-4">
                   <div className="space-y-4">
                     <div className="flex items-center justify-between">
-                      <h3 className="font-medium truncate">Settings</h3>
-                      <span className="text-[10px] leading-relaxed text-white/50">
+                      <h3 className="font-medium truncate select-none cursor-default">Settings</h3>
+                      <span className="text-[10px] leading-relaxed text-white/50 select-none cursor-default">
                         electron v{electronVersion} | client v{appVersion}
                       </span>
                     </div>
                     <div className="space-y-3">
                       {/* Toggle Command */}
                       <div
-                        className="rounded px-2 py-1.5 hover:bg-white/10 transition-colors"
+                        className="rounded px-2 py-1.5 hover:bg-white/10 transition-colors cursor-default"
                         onClick={async () => {
                           try {
                             const result =
@@ -290,24 +290,24 @@ const QueueCommands: React.FC<QueueCommandsProps> = ({
                         }}
                       >
                         <div className="flex items-center justify-between">
-                          <span className="truncate">Toggle Window</span>
+                          <span className="truncate select-none cursor-default">Toggle Window</span>
                           <div className="flex gap-1 flex-shrink-0">
-                            <span className="bg-white/10 rounded-md px-1.5 py-1 text-[11px] leading-none text-white/70 cursor-default">
+                            <span className="bg-white/10 rounded-md px-1.5 py-1 text-[11px] leading-none text-white/70 select-none cursor-default">
                               {COMMAND_KEY}
                             </span>
-                            <span className="bg-white/10 rounded-md px-1.5 py-1 text-[11px] leading-none text-white/70 cursor-default">
+                            <span className="bg-white/10 rounded-md px-1.5 py-1 text-[11px] leading-none text-white/70 select-none cursor-default">
                               B
                             </span>
                           </div>
                         </div>
-                        <p className="text-[10px] leading-relaxed text-white/70 truncate mt-1">
+                        <p className="text-[10px] leading-relaxed text-white/70 truncate mt-1 select-none cursor-default">
                           Show or hide this window.
                         </p>
                       </div>
 
                       {/* Screenshot Command */}
                       <div
-                        className="rounded px-2 py-1.5 hover:bg-white/10 transition-colors"
+                        className="rounded px-2 py-1.5 hover:bg-white/10 transition-colors cursor-default"
                         onClick={async () => {
                           try {
                             const result =
@@ -334,17 +334,17 @@ const QueueCommands: React.FC<QueueCommandsProps> = ({
                         }}
                       >
                         <div className="flex items-center justify-between">
-                          <span className="truncate">Take Screenshot</span>
+                          <span className="truncate select-none cursor-default">Take Screenshot</span>
                           <div className="flex gap-1 flex-shrink-0">
-                            <span className="bg-white/10 rounded-md px-1.5 py-1 text-[11px] leading-none text-white/70 cursor-default">
+                            <span className="bg-white/10 rounded-md px-1.5 py-1 text-[11px] leading-none text-white/70 select-none cursor-default">
                               {COMMAND_KEY}
                             </span>
-                            <span className="bg-white/10 rounded-md px-1.5 py-1 text-[11px] leading-none text-white/70 cursor-default">
+                            <span className="bg-white/10 rounded-md px-1.5 py-1 text-[11px] leading-none text-white/70 select-none cursor-default">
                               H
                             </span>
                           </div>
                         </div>
-                        <p className="text-[10px] leading-relaxed text-white/70 truncate mt-1">
+                        <p className="text-[10px] leading-relaxed text-white/70 truncate mt-1 select-none cursor-default">
                           Take a screenshot of the problem description.
                         </p>
                       </div>
@@ -355,7 +355,7 @@ const QueueCommands: React.FC<QueueCommandsProps> = ({
                           screenshotCount > 0
                             ? ""
                             : "opacity-50"
-                        }`}
+                        } cursor-default`}
                         onClick={async () => {
                           if (screenshotCount === 0) return
 
@@ -387,17 +387,17 @@ const QueueCommands: React.FC<QueueCommandsProps> = ({
                         }}
                       >
                         <div className="flex items-center justify-between">
-                          <span className="truncate">Solve</span>
+                          <span className="truncate select-none cursor-default">Solve</span>
                           <div className="flex gap-1 flex-shrink-0">
-                            <span className="bg-white/10 rounded-md px-1.5 py-1 text-[11px] leading-none text-white/70 cursor-default">
+                            <span className="bg-white/10 rounded-md px-1.5 py-1 text-[11px] leading-none text-white/70 select-none cursor-default">
                               {COMMAND_KEY}
                             </span>
-                            <span className="bg-white/10 rounded-md px-1.5 py-1 text-[11px] leading-none text-white/70 cursor-default">
+                            <span className="bg-white/10 rounded-md px-1.5 py-1 text-[11px] leading-none text-white/70 select-none cursor-default">
                               ↵
                             </span>
                           </div>
                         </div>
-                        <p className="text-[10px] leading-relaxed text-white/70 truncate mt-1">
+                        <p className="text-[10px] leading-relaxed text-white/70 truncate mt-1 select-none cursor-default">
                           {screenshotCount > 0
                             ? "Generate a solution based on the current problem."
                             : "Take a screenshot first to generate a solution."}

@@ -212,7 +212,7 @@ export const allModels: AIModel[] = [
     isVisionModel: false
   },
   {
-    id: "o3-mini",
+    id: "o3-mini-low",
     name: "o3-mini (low)",
     description: "Quick | 1697 CF Elo.",
     provider: "openai",
@@ -222,7 +222,7 @@ export const allModels: AIModel[] = [
     isVisionModel: false
   },
   {
-    id: "o3-mini",
+    id: "o3-mini-medium",
     name: "o3-mini (medium)",
     description: "Balanced | 1997 CF Elo.",
     provider: "openai",
@@ -232,7 +232,7 @@ export const allModels: AIModel[] = [
     isVisionModel: false
   },
   {
-    id: "o3-mini",
+    id: "o3-mini-high",
     name: "o3-mini (high)",
     description: "Best | 2073 CF Elo.",
     provider: "openai",
@@ -630,8 +630,12 @@ export class AIModelManager {
 
     const requestOptions: OpenAI.Chat.ChatCompletionCreateParams = {
       model: modelId,
-      messages: typedMessages,
-      temperature: 0.7
+      messages: typedMessages
+    }
+    
+    // Only add temperature for non-'o' models (o1, o3-mini, etc. don't support it)
+    if (!modelId.startsWith('o')) {
+      requestOptions.temperature = 0.7
     }
 
     // Only add response_format if we're using a model that supports it
@@ -949,7 +953,11 @@ export class AIModelManager {
 
     // Add the schema to the OpenAI API call if needed
     if (useStructuredOutput && schema) {
-      return this.callOpenAIApi(modelId, messages, {
+      // Find the model first to get the correct modelId
+      const model = models.find((m) => m.id === modelId)
+      if (!model) throw new Error(`Model ${modelId} not found`)
+      
+      return this.callOpenAIApi(model.modelId, messages, {
         ...options,
         response_format: { type: "json_object" }
       })

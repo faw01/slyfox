@@ -235,11 +235,11 @@ export const CustomDropdown: React.FC<CustomDropdownProps> = ({
       {/* Dropdown button */}
       <button
         type="button"
-        className="min-w-full flex items-center justify-between px-3 py-1.5 bg-black/20 hover:bg-black/30 border border-white/10 rounded-md text-[11px] text-white/90"
+        className="min-w-full flex items-center justify-between px-3 py-1.5 bg-black/20 hover:bg-black/30 border border-white/10 rounded-md text-[11px] text-white/90 select-none cursor-default"
         onClick={toggleDropdown}
         aria-label={selectedOption ? `Selected: ${selectedOption.label}` : placeholder}
       >
-        <span className="truncate">
+        <span className="truncate select-none cursor-default">
           {selectedOption ? selectedOption.label : placeholder}
         </span>
         <svg 
@@ -266,8 +266,8 @@ export const CustomDropdown: React.FC<CustomDropdownProps> = ({
           role="listbox"
         >
           {options.map((group, groupIndex) => (
-            <div key={group.label}>
-              <div className="sticky top-0 px-3 py-1 bg-black/90 text-[10px] font-medium text-white/50">
+            <div key={group.label} className="mb-1 last:mb-0">
+              <div className="px-2 py-1 text-[9px] uppercase font-semibold text-white/50 select-none cursor-default">
                 {group.label}
               </div>
               {group.options.map((option, optionIndex) => {
@@ -275,19 +275,20 @@ export const CustomDropdown: React.FC<CustomDropdownProps> = ({
                 return (
                   <div
                     key={option.value}
-                    className={`px-3 py-1.5 text-[11px] cursor-pointer ${
+                    onClick={() => handleSelect(option)}
+                    onMouseEnter={() => setHighlightedIndex(totalIndex)}
+                    className={`px-3 py-1.5 text-[11px] cursor-default transition-colors select-none ${
                       option.value === value 
                         ? 'bg-white/20 text-white' 
                         : highlightedIndex === totalIndex 
                           ? 'bg-white/10 text-white/90' 
                           : 'text-white/70 hover:bg-white/10 hover:text-white/90'
                     }`}
-                    onClick={() => handleSelect(option)}
-                    onMouseEnter={() => setHighlightedIndex(totalIndex)}
-                    data-index={totalIndex}
                     role="option"
                     aria-selected={option.value === value}
                     title={option.title}
+                    data-index={totalIndex}
+                    tabIndex={-1}
                   >
                     {option.label}
                   </div>

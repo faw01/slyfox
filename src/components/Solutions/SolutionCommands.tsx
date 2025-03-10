@@ -87,12 +87,12 @@ const SolutionCommands: React.FC<SolutionCommandsProps> = ({
               }
             }}
           >
-            <span className="text-[11px] leading-none cursor-default">Show/Hide</span>
+            <span className="text-[11px] leading-none select-none cursor-default">Show/Hide</span>
             <div className="flex gap-1">
-              <button className="bg-white/10 rounded-md px-1.5 py-1 text-[11px] leading-none text-white/70 cursor-default">
+              <button className="bg-white/10 rounded-md px-1.5 py-1 text-[11px] leading-none text-white/70 select-none cursor-default">
                 {COMMAND_KEY}
               </button>
-              <button className="bg-white/10 rounded-md px-1.5 py-1 text-[11px] leading-none text-white/70 cursor-default">
+              <button className="bg-white/10 rounded-md px-1.5 py-1 text-[11px] leading-none text-white/70 select-none cursor-default">
                 B
               </button>
             </div>
@@ -116,16 +116,16 @@ const SolutionCommands: React.FC<SolutionCommandsProps> = ({
                   }
                 }}
               >
-                <span className="text-[11px] leading-none truncate cursor-default">
+                <span className="text-[11px] leading-none truncate select-none cursor-default">
                   {extraScreenshots.length === 0
                     ? "Screenshot again"
                     : "Screenshot"}
                 </span>
                 <div className="flex gap-1">
-                  <button className="bg-white/10 rounded-md px-1.5 py-1 text-[11px] leading-none text-white/70 cursor-default">
+                  <button className="bg-white/10 rounded-md px-1.5 py-1 text-[11px] leading-none text-white/70 select-none cursor-default">
                     {COMMAND_KEY}
                   </button>
-                  <button className="bg-white/10 rounded-md px-1.5 py-1 text-[11px] leading-none text-white/70 cursor-default">
+                  <button className="bg-white/10 rounded-md px-1.5 py-1 text-[11px] leading-none text-white/70 select-none cursor-default">
                     H
                   </button>
                 </div>
@@ -159,12 +159,12 @@ const SolutionCommands: React.FC<SolutionCommandsProps> = ({
                     }
                   }}
                 >
-                  <span className="text-[11px] leading-none cursor-default">Debug</span>
+                  <span className="text-[11px] leading-none select-none cursor-default">Debug</span>
                   <div className="flex gap-1">
-                    <button className="bg-white/10 rounded-md px-1.5 py-1 text-[11px] leading-none text-white/70 cursor-default">
+                    <button className="bg-white/10 rounded-md px-1.5 py-1 text-[11px] leading-none text-white/70 select-none cursor-default">
                       {COMMAND_KEY}
                     </button>
-                    <button className="bg-white/10 rounded-md px-1.5 py-1 text-[11px] leading-none text-white/70 cursor-default">
+                    <button className="bg-white/10 rounded-md px-1.5 py-1 text-[11px] leading-none text-white/70 select-none cursor-default">
                       ↵
                     </button>
                   </div>
@@ -189,12 +189,12 @@ const SolutionCommands: React.FC<SolutionCommandsProps> = ({
               }
             }}
           >
-            <span className="text-[11px] leading-none cursor-default">Start Over</span>
+            <span className="text-[11px] leading-none select-none cursor-default">Start Over</span>
             <div className="flex gap-1">
-              <button className="bg-white/10 rounded-md px-1.5 py-1 text-[11px] leading-none text-white/70 cursor-default">
+              <button className="bg-white/10 rounded-md px-1.5 py-1 text-[11px] leading-none text-white/70 select-none cursor-default">
                 {COMMAND_KEY}
               </button>
-              <button className="bg-white/10 rounded-md px-1.5 py-1 text-[11px] leading-none text-white/70 cursor-default">
+              <button className="bg-white/10 rounded-md px-1.5 py-1 text-[11px] leading-none text-white/70 select-none cursor-default">
                 R
               </button>
             </div>
@@ -335,17 +335,17 @@ const SolutionCommands: React.FC<SolutionCommandsProps> = ({
                         }}
                       >
                         <div className="flex items-center justify-between">
-                          <span className="truncate cursor-default">Toggle Window</span>
+                          <span className="truncate select-none cursor-default">Toggle Window</span>
                           <div className="flex gap-1 flex-shrink-0">
-                            <span className="bg-white/10 rounded-md px-1.5 py-1 text-[11px] leading-none text-white/70 cursor-default">
+                            <span className="bg-white/10 rounded-md px-1.5 py-1 text-[11px] leading-none text-white/70 select-none cursor-default">
                               {COMMAND_KEY}
                             </span>
-                            <span className="bg-white/10 rounded-md px-1.5 py-1 text-[11px] leading-none text-white/70 cursor-default">
+                            <span className="bg-white/10 rounded-md px-1.5 py-1 text-[11px] leading-none text-white/70 select-none cursor-default">
                               B
                             </span>
                           </div>
                         </div>
-                        <p className="text-[10px] leading-relaxed text-white/70 truncate mt-1 cursor-default">
+                        <p className="text-[10px] leading-relaxed text-white/70 truncate mt-1 select-none cursor-default">
                           Show or hide this window.
                         </p>
                       </div>
@@ -381,17 +381,17 @@ const SolutionCommands: React.FC<SolutionCommandsProps> = ({
                             }}
                           >
                             <div className="flex items-center justify-between">
-                              <span className="truncate cursor-default">Take Screenshot</span>
+                              <span className="truncate select-none cursor-default">Take Screenshot</span>
                               <div className="flex gap-1 flex-shrink-0">
-                                <span className="bg-white/10 rounded-md px-1.5 py-1 text-[11px] leading-none text-white/70 cursor-default">
+                                <span className="bg-white/10 rounded-md px-1.5 py-1 text-[11px] leading-none text-white/70 select-none cursor-default">
                                   {COMMAND_KEY}
                                 </span>
-                                <span className="bg-white/10 rounded-md px-1.5 py-1 text-[11px] leading-none text-white/70 cursor-default">
+                                <span className="bg-white/10 rounded-md px-1.5 py-1 text-[11px] leading-none text-white/70 select-none cursor-default">
                                   H
                                 </span>
                               </div>
                             </div>
-                            <p className="text-[10px] leading-relaxed text-white/70 truncate mt-1 cursor-default">
+                            <p className="text-[10px] leading-relaxed text-white/70 truncate mt-1 select-none cursor-default">
                               Capture additional parts of the question or your
                               solution for debugging help.
                             </p>
@@ -429,17 +429,17 @@ const SolutionCommands: React.FC<SolutionCommandsProps> = ({
                               }}
                             >
                               <div className="flex items-center justify-between">
-                                <span className="truncate cursor-default">Debug</span>
+                                <span className="truncate select-none cursor-default">Debug</span>
                                 <div className="flex gap-1 flex-shrink-0">
-                                  <span className="bg-white/10 rounded-md px-1.5 py-1 text-[11px] leading-none text-white/70 cursor-default">
+                                  <span className="bg-white/10 rounded-md px-1.5 py-1 text-[11px] leading-none text-white/70 select-none cursor-default">
                                     {COMMAND_KEY}
                                   </span>
-                                  <span className="bg-white/10 rounded-md px-1.5 py-1 text-[11px] leading-none text-white/70 cursor-default">
+                                  <span className="bg-white/10 rounded-md px-1.5 py-1 text-[11px] leading-none text-white/70 select-none cursor-default">
                                     ↵
                                   </span>
                                 </div>
                               </div>
-                              <p className="text-[10px] leading-relaxed text-white/70 truncate mt-1 cursor-default">
+                              <p className="text-[10px] leading-relaxed text-white/70 truncate mt-1 select-none cursor-default">
                                 Generate new solutions based on all previous and
                                 newly added screenshots.
                               </p>
@@ -466,18 +466,18 @@ const SolutionCommands: React.FC<SolutionCommandsProps> = ({
                         }}
                       >
                         <div className="flex items-center justify-between">
-                          <span className="truncate cursor-default">Start Over</span>
+                          <span className="truncate select-none cursor-default">Start Over</span>
                           <div className="flex gap-1 flex-shrink-0">
-                            <span className="bg-white/10 rounded-md px-1.5 py-1 text-[11px] leading-none text-white/70 cursor-default">
+                            <span className="bg-white/10 rounded-md px-1.5 py-1 text-[11px] leading-none text-white/70 select-none cursor-default">
                               {COMMAND_KEY}
                             </span>
-                            <span className="bg-white/10 rounded-md px-1.5 py-1 text-[11px] leading-none text-white/70 cursor-default">
+                            <span className="bg-white/10 rounded-md px-1.5 py-1 text-[11px] leading-none text-white/70 select-none cursor-default">
                               R
                             </span>
                           </div>
                         </div>
-                        <p className="text-[10px] leading-relaxed text-white/70 truncate mt-1 cursor-default">
-                          Start fresh with a new question.
+                        <p className="text-[10px] leading-relaxed text-white/70 truncate mt-1 select-none cursor-default">
+                          Discard all progress and go back to the problem description.
                         </p>
                       </div>
                     </div>
