@@ -1,6 +1,6 @@
 import React, { useEffect, useMemo, useState } from 'react'
-import { useToast } from '../../contexts/toast'
 import { CustomDropdown } from './CustomDropdown'
+import { getSTTModels } from '../../lib/models'
 
 // Define window global variables
 declare global {
@@ -25,14 +25,13 @@ interface STTModelSelectorProps {
   setSTTModel: (model: string) => void
 }
 
-const RECOMMENDED_STT_MODELS = ['whisper-1', 'deepgram-nova-3']
+const RECOMMENDED_STT_MODELS = ['deepgram-nova-3', 'gpt-4o-transcribe', 'gpt-4o-mini-transcribe']
 const LOCAL_WHISPER_MODELS = ['tiny', 'base', 'small', 'medium', 'large', 'turbo']
 
 const STTModelSelector: React.FC<STTModelSelectorProps> = ({
   currentSTTModel,
   setSTTModel
 }) => {
-  const { showToast } = useToast()
   const [isLocalWhisperAvailable, setIsLocalWhisperAvailable] = useState(false)
 
   // Check for local whisper CLI on component mount
@@ -61,14 +60,12 @@ const STTModelSelector: React.FC<STTModelSelectorProps> = ({
     if (!window.__STT_MODEL__) {
       window.__STT_MODEL__ = 'deepgram-nova-3'
       setSTTModel('deepgram-nova-3')
-      showToast('STT Model', `Using ${window.__STT_MODEL__}`, 'neutral')
     }
   }, [])
 
   const handleSTTModelChange = (model: string) => {
     window.__STT_MODEL__ = model
     setSTTModel(model)
-    showToast('STT Model', `Using ${model}`, 'neutral')
   }
 
   const sttModelOptions = useMemo(() => {
@@ -78,12 +75,12 @@ const STTModelSelector: React.FC<STTModelSelectorProps> = ({
       currentSTTModel 
     })
 
-    // Define all available STT models
-    const allSTTModels = [
-      { id: 'whisper-1', name: 'whisper-1', provider: 'openai' },
-      { id: 'deepgram-nova-3', name: 'nova-3', provider: 'deepgram' },
-      { id: 'deepgram-nova-2', name: 'nova-2', provider: 'deepgram' }
-    ]
+    // Get all STT models from the centralized models.ts
+    const allSTTModels = getSTTModels().map(model => ({
+      id: model.id,
+      name: model.name,
+      provider: model.provider
+    }))
 
     // Group models by provider
     let providerGroups: { [key: string]: STTModelOption[] } = {}
@@ -155,7 +152,6 @@ const STTModelSelector: React.FC<STTModelSelectorProps> = ({
               className="text-[11px] px-1.5 py-0.5 rounded bg-green-500/20 text-green-300 flex items-center gap-1"
               title={`${LOCAL_WHISPER_MODELS.length} local Whisper models available`}
             >
-              <span>🎤</span>
               <span>{LOCAL_WHISPER_MODELS.length}</span>
             </div>
           )}

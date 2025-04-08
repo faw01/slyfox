@@ -41,6 +41,8 @@ const state = {
   view: "queue" as "queue" | "solutions" | "debug",
   problemInfo: null as any,
   hasDebugged: false,
+  isExtractingProblem: false,
+  isGeneratingSolution: false,
 
   // Processing events
   PROCESSING_EVENTS: {
@@ -293,7 +295,7 @@ async function createWindow(): Promise<void> {
   }
 
   state.mainWindow = new BrowserWindow(windowSettings)
-
+  
   // Set initial opacity from store
   const savedOpacity = store.get('opacity') ?? 1.0
   state.mainWindow.setOpacity(savedOpacity)
@@ -452,7 +454,10 @@ function showMainWindow(): void {
         ...state.windowSize
       })
     }
-    state.mainWindow.setIgnoreMouseEvents(false)
+    
+    // Update click-through state based on application state
+    updateClickThroughState()
+    
     state.mainWindow.setAlwaysOnTop(true, "floating", 1)
     state.mainWindow.setVisibleOnAllWorkspaces(true, {
       visibleOnFullScreen: true
@@ -656,6 +661,9 @@ function getView(): "queue" | "solutions" | "debug" {
 function setView(view: "queue" | "solutions" | "debug"): void {
   state.view = view
   state.screenshotHelper?.setView(view)
+  
+  // Update click-through state when view changes
+  updateClickThroughState()
 }
 
 function getScreenshotHelper(): ScreenshotHelper | null {
@@ -717,6 +725,36 @@ function getHasDebugged(): boolean {
   return state.hasDebugged
 }
 
+function setIsExtractingProblem(value: boolean): void {
+  state.isExtractingProblem = value
+  updateClickThroughState()
+}
+
+function getIsExtractingProblem(): boolean {
+  return state.isExtractingProblem
+}
+
+function setIsGeneratingSolution(value: boolean): void {
+  state.isGeneratingSolution = value
+  updateClickThroughState()
+}
+
+function getIsGeneratingSolution(): boolean {
+  return state.isGeneratingSolution
+}
+
+// Helper to update click-through state based on all relevant conditions
+function updateClickThroughState(): void {
+  if (!state.mainWindow || state.mainWindow.isDestroyed()) return
+  
+  // Enable click-through if: in solutions view OR extracting problem OR generating solution
+  if (state.view === "solutions" || state.isExtractingProblem || state.isGeneratingSolution) {
+    state.mainWindow.setIgnoreMouseEvents(true, { forward: true })
+  } else {
+    state.mainWindow.setIgnoreMouseEvents(false)
+  }
+}
+
 // Export state and functions for other modules
 export {
   state,
@@ -741,7 +779,11 @@ export {
   getImagePreview,
   deleteScreenshot,
   setHasDebugged,
-  getHasDebugged
+  getHasDebugged,
+  setIsExtractingProblem,
+  getIsExtractingProblem,
+  setIsGeneratingSolution,
+  getIsGeneratingSolution
 }
 
 app.whenReady().then(initializeApp)

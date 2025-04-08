@@ -1,3 +1,12 @@
+export interface APIKeys {
+  openai?: string
+  anthropic?: string
+  google?: string
+  deepseek?: string
+  meta?: string
+  deepgram?: string
+}
+
 export interface ElectronAPI {
   openSubscriptionPortal: (authData: {
     id: string
@@ -29,8 +38,10 @@ export interface ElectronAPI {
   onSolutionSuccess: (callback: (data: any) => void) => () => void
   onUnauthorized: (callback: () => void) => () => void
   onDebugError: (callback: (error: string) => void) => () => void
+  onToggleSTTPanel: (callback: () => void) => () => void
   openExternal: (url: string) => void
   toggleMainWindow: () => Promise<{ success: boolean; error?: string }>
+  toggleSTTPanel: () => Promise<{ success: boolean; error?: string }>
   triggerScreenshot: () => Promise<{ success: boolean; error?: string }>
   triggerProcessScreenshots: () => Promise<{ success: boolean; error?: string }>
   triggerReset: () => Promise<{ success: boolean; error?: string }>
@@ -61,18 +72,10 @@ export interface ElectronAPI {
   getOpacity: () => Promise<number>
   setOpacity: (opacity: number) => Promise<void>
 
-  // API Key methods
-  getApiKeys: () => Promise<{
-    openai?: string
-    anthropic?: string
-    google?: string
-    deepseek?: string
-    xai?: string
-    meta?: string
-    alibaba?: string
-  }>
-  setApiKey: (provider: 'openai' | 'anthropic' | 'google' | 'deepseek' | 'xai' | 'meta' | 'alibaba', key: string) => Promise<void>
-  clearApiKey: (provider: 'openai' | 'anthropic' | 'google' | 'deepseek' | 'xai' | 'meta' | 'alibaba') => Promise<void>
+  // Api key management
+  getApiKeys: () => Promise<APIKeys>
+  setApiKey: (provider: 'openai' | 'anthropic' | 'google' | 'deepseek' | 'meta' | 'deepgram', key: string) => Promise<void>
+  clearApiKey: (provider: 'openai' | 'anthropic' | 'google' | 'deepseek' | 'meta' | 'deepgram') => Promise<void>
 
   // Whisper CLI methods
   saveTempAudio: (audioData: Blob) => Promise<string>

@@ -26,7 +26,7 @@ export class TeleprompterHelper {
   }
 
   /**
-   * Gets the currently selected model from the main window or falls back to the store
+   * Gets the currently selected teleprompter model from the main window or falls back to main model
    * @returns The current model ID
    */
   private async getCurrentModel(): Promise<string> {
@@ -37,17 +37,23 @@ export class TeleprompterHelper {
     }
 
     try {
-      // Get the model from the window global variable
-      const model = await mainWindow.webContents.executeJavaScript('window.__MODEL__')
+      // Get the teleprompter model from the window global variable
+      const teleprompterModel = await mainWindow.webContents.executeJavaScript('window.__TELEPROMPTER_MODEL__')
       
-      if (typeof model === 'string' && model) {
-        return model
-      } else {
-        // Fall back to store if window global isn't set
-        return this.deps.store.get('model')
+      if (typeof teleprompterModel === 'string' && teleprompterModel) {
+        return teleprompterModel
+      } 
+      
+      // If no teleprompter model is set, fall back to the main model
+      const mainModel = await mainWindow.webContents.executeJavaScript('window.__MODEL__')
+      if (typeof mainModel === 'string' && mainModel) {
+        return mainModel
       }
+      
+      // Fall back to store if window globals aren't set
+      return this.deps.store.get('model')
     } catch (error) {
-      console.error('Error getting current model:', error)
+      console.error('Error getting teleprompter model:', error)
       // Fall back to store if there's an error
       return this.deps.store.get('model')
     }
@@ -86,9 +92,24 @@ export class TeleprompterHelper {
         throw new Error("No main window available")
       }
       
-      // Get the current model from window.__MODEL__ or store
+      // Get the current model from window.__TELEPROMPTER_MODEL__ or fallbacks
       const currentModel = await this.getCurrentModel()
-      console.log("Using model for teleprompter response:", currentModel)
+      
+      // Check if we're using the teleprompter model or a fallback
+      try {
+        const teleprompterModel = await mainWindow.webContents.executeJavaScript('window.__TELEPROMPTER_MODEL__')
+        const mainModel = await mainWindow.webContents.executeJavaScript('window.__MODEL__')
+        
+        if (currentModel === teleprompterModel) {
+          console.log("Using dedicated teleprompter model:", currentModel)
+        } else if (currentModel === mainModel) {
+          console.log("Using main model as fallback for teleprompter:", currentModel)
+        } else {
+          console.log("Using store model as fallback for teleprompter:", currentModel)
+        }
+      } catch (error) {
+        console.log("Using model for teleprompter response:", currentModel)
+      }
       
       // Create prompt
       const messages = createTeleprompterMessages(transcript)

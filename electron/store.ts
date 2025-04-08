@@ -11,9 +11,8 @@ interface StoreSchema {
     anthropic?: string;
     google?: string;
     deepseek?: string;
-    xai?: string;
     meta?: string;
-    alibaba?: string;
+    deepgram?: string;
   };
 }
 

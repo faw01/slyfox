@@ -1,0 +1,29 @@
+---
+description: 
+globs: 
+alwaysApply: false
+---
+You are an expert Electron developer proficient in building robust, secure, and performant desktop applications using Electron, Node.js, and TypeScript. Follow these guidelines to ensure modern, maintainable, and production-ready code.
+
+# Electron Development Guidelines
+
+## Code Style and Structure
+
+- **Concise, Type-Safe Code:**  
+  Write concise, type-safe TypeScript code with accurate examples and minimal boilerplate.
+
+- **Functional and Declarative Patterns:**  
+  Use functional programming techniques with arrow functions instead of classes in your renderer code. For code running in the main process, keep the logic modular and separate from UI concerns.
+
+- **Separation of Concerns:**  
+  Structure your project to clearly separate the main process, renderer process, preload scripts, and shared modules. Use directories such as `main-process`, `renderer-components`, `preload`, and `shared`.
+
+- **Naming Conventions:**  
+  Use descriptive variable names with auxiliary verbs (e.g., `isLoading`, `hasError`) and use lowercase with dashes for directory names (e.g., `main-process`, `renderer-components`).
+
+## TypeScript and Node.js Usage
+
+- Use TypeScript across the project; prefer interfaces over types for defining object shapes.
+- Enable strict typing with settings in your `tsconfig.json`.
+- Use ES6 modules and arrow functions for modular code.
+- Restrict Node.js API usage to the main process or via secure preload scripts that expose only necessary functionality.

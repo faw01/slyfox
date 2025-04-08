@@ -1,6 +1,5 @@
 import React, { useEffect, useMemo, useState } from "react"
 import { models, visionModels as importedVisionModels } from "../../lib/models"
-import { useToast } from "../../contexts/toast"
 import { CustomDropdown } from "./CustomDropdown"
 import { checkOllamaHealth, getLocalModels } from "../../lib/ollama-client"
 
@@ -38,7 +37,6 @@ export const VisionModelSelector: React.FC<VisionModelSelectorProps> = ({
   currentVisionModel,
   setCurrentVisionModel
 }) => {
-  const { showToast } = useToast()
   const [isOllamaAvailable, setIsOllamaAvailable] = useState(false)
   const [localModels, setLocalModels] = useState<any[]>([])
   
@@ -83,16 +81,6 @@ export const VisionModelSelector: React.FC<VisionModelSelectorProps> = ({
     if (!currentVisionModel) {
       const defaultModel = "gpt-4o"
       setCurrentVisionModel(defaultModel)
-      
-      // Find the model details and show the toast
-      const selectedModel = models.find(m => m.id === defaultModel)
-      if (selectedModel) {
-        showToast(
-          "Vision Model Selected",
-          selectedModel.name,
-          "success"
-        )
-      }
     }
   }, [])
 
@@ -103,19 +91,6 @@ export const VisionModelSelector: React.FC<VisionModelSelectorProps> = ({
     
     // Check if it's a local model
     const isLocalModel = localModels.some(m => m.id === newModel || m.name === newModel)
-    
-    // Find the model details and show the toast
-    const selectedModel = isLocalModel 
-      ? localModels.find(m => m.id === newModel || m.name === newModel)
-      : models.find(m => m.id === newModel)
-      
-    if (selectedModel) {
-      showToast(
-        "Vision Model Selected",
-        `${selectedModel.name}${isLocalModel ? ' (Local)' : ''}`,
-        "success"
-      )
-    }
   }
 
   const visionModelOptions = useMemo(() => {
@@ -266,7 +241,6 @@ export const VisionModelSelector: React.FC<VisionModelSelectorProps> = ({
               className="text-[11px] px-1.5 py-0.5 rounded bg-green-500/20 text-green-300 flex items-center gap-1"
               title="Local vision models available"
             >
-              <span>🖥️</span>
               <span>Vision</span>
             </div>
           )}

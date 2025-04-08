@@ -22,6 +22,7 @@ declare global {
     __MODEL__: string;
     __VISION_MODEL__: string;
     __STT_MODEL__: string;
+    __TELEPROMPTER_MODEL__: string;
     electronAPI: ElectronAPI;
   }
 }
@@ -80,6 +81,7 @@ function App() {
     // Force set the models and trigger the model update
     window.__MODEL__ = "gpt-4o"
     window.__VISION_MODEL__ = "gpt-4o-mini"
+    window.__TELEPROMPTER_MODEL__ = "gpt-4o"
     window.__LANGUAGE__ = window.__LANGUAGE__ || "python"
     
     // Update the state and trigger model selection

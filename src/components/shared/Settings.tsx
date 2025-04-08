@@ -3,7 +3,8 @@ import { LanguageSelector } from './LanguageSelector'
 import { ModelSelector } from './ModelSelector'
 import VisionModelSelector from './VisionModelSelector'
 import STTModelSelector from './STTModelSelector'
-import { useToast } from '../../contexts/toast'
+import TeleprompterModelSelector from './TeleprompterModelSelector'
+import { ChatModelSelector } from './ChatModelSelector'
 
 interface SettingsProps {
   currentLanguage: string
@@ -11,17 +12,16 @@ interface SettingsProps {
   currentModel: string
   setModel: (model: string) => void
   isLocked?: boolean
+  onClose: () => void
 }
 
 interface ApiKeys {
-  openai?: string
-  anthropic?: string
-  google?: string
-  deepseek?: string
-  xai?: string
-  meta?: string
-  alibaba?: string
-  deepgram?: string
+  openai?: string;
+  anthropic?: string;
+  google?: string;
+  deepseek?: string;
+  meta?: string;
+  deepgram?: string;
 }
 
 interface Hotkey {
@@ -42,33 +42,43 @@ const HOTKEYS: Hotkey[] = [
   { key: 'hideApp', label: 'Toggle Window', description: 'Toggle window visibility', defaultValue: 'CommandOrControl+B' }
 ]
 
+// API key provider configs
+const apiKeyProviders = [
+  { key: 'openai', label: 'OpenAI API Key' },
+  { key: 'anthropic', label: 'Anthropic API Key' },
+  { key: 'google', label: 'Gemini API Key' },
+  { key: 'deepseek', label: 'DeepSeek API Key' },
+  { key: 'meta', label: 'Meta API Key' },
+  { key: 'deepgram', label: 'Deepgram API Key' },
+];
+
 export const Settings: React.FC<SettingsProps> = ({
   currentLanguage,
   setLanguage,
   currentModel,
   setModel,
-  isLocked = true
+  isLocked = true,
+  onClose
 }) => {
   const [apiKeys, setApiKeys] = useState<ApiKeys>({})
   const [appVersion, setAppVersion] = useState<string>("")
   const [electronVersion, setElectronVersion] = useState<string>("")
   const [currentVisionModel, setCurrentVisionModel] = useState<string>(() => {
-    if (!window.__VISION_MODEL__) {
-      window.__VISION_MODEL__ = "gpt-4o-mini"
-    }
-    return window.__VISION_MODEL__
+    return window.__VISION_MODEL__ || ''
   })
   const [currentSTTModel, setCurrentSTTModel] = useState<string>(() => {
-    if (!window.__STT_MODEL__) {
-      window.__STT_MODEL__ = "deepgram-nova-3"
-    }
-    return window.__STT_MODEL__
+    return window.__STT_MODEL__ || ''
+  })
+  const [currentTeleprompterModel, setCurrentTeleprompterModel] = useState<string>(() => {
+    return window.__TELEPROMPTER_MODEL__ || ''
+  })
+  const [currentChatModel, setCurrentChatModel] = useState<string>(() => {
+    return window.__CHAT_MODEL__ || ''
   })
   const [opacity, setOpacity] = useState(1.0)
   const [theme, setTheme] = useState<'light' | 'dark'>('dark')
   const [isContentProtectionEnabled, setIsContentProtectionEnabled] = useState(true)
   const [isTaskbarIconHidden, setIsTaskbarIconHidden] = useState(false)
-  const { showToast } = useToast()
   const [isApiKeysOpen, setIsApiKeysOpen] = useState(false)
   const [isAppearanceOpen, setIsAppearanceOpen] = useState(false)
   const [isHotkeysOpen, setIsHotkeysOpen] = useState(false)
@@ -236,17 +246,6 @@ export const Settings: React.FC<SettingsProps> = ({
       )?.[0];
       
       if (conflictingHotkeyKey) {
-        // Find the label for the conflicting hotkey
-        const conflictingHotkey = HOTKEYS.find(h => h.key === conflictingHotkeyKey);
-        const conflictingLabel = conflictingHotkey ? conflictingHotkey.label : conflictingHotkeyKey;
-        
-        // Show error toast
-        showToast(
-          'Hotkey Conflict', 
-          `This key combination is already used for "${conflictingLabel}". Please try a different combination.`, 
-          'error'
-        );
-        
         // Keep editing mode open
         return;
       }
@@ -395,28 +394,22 @@ export const Settings: React.FC<SettingsProps> = ({
   }
 
   const handleApiKeyChange = async (provider: keyof ApiKeys, key: string) => {
-    if (isLocked) return
-    try {
+    setApiKeys(prev => ({ ...prev, [provider]: key }))
+    
+    if (window.electronAPI?.setApiKey) {
       await window.electronAPI.setApiKey(provider, key)
-      setApiKeys(prev => ({ ...prev, [provider]: key }))
-      showToast('Success', `${provider.toUpperCase()} API key updated`, 'success')
-    } catch (error) {
-      showToast('Error', `Failed to update ${provider.toUpperCase()} API key`, 'error')
     }
   }
 
   const handleClearApiKey = async (provider: keyof ApiKeys) => {
-    if (isLocked) return
-    try {
+    setApiKeys(prev => {
+      const updated = { ...prev }
+      delete updated[provider]
+      return updated
+    })
+    
+    if (window.electronAPI?.clearApiKey) {
       await window.electronAPI.clearApiKey(provider)
-      setApiKeys(prev => {
-        const newKeys = { ...prev }
-        delete newKeys[provider]
-        return newKeys
-      })
-      showToast('Success', `${provider.toUpperCase()} API key removed`, 'success')
-    } catch (error) {
-      showToast('Error', `Failed to remove ${provider.toUpperCase()} API key`, 'error')
     }
   }
 
@@ -471,15 +464,7 @@ export const Settings: React.FC<SettingsProps> = ({
             </span>
           </button>
           <div className={`space-y-2 overflow-hidden transition-all duration-200 ${isApiKeysOpen ? 'max-h-[500px] opacity-100' : 'max-h-0 opacity-0'}`}>
-            {[
-              { key: 'openai', label: 'OpenAI API Key' },
-              { key: 'anthropic', label: 'Anthropic API Key' },
-              { key: 'google', label: 'Google API Key' },
-              { key: 'deepseek', label: 'DeepSeek API Key' },
-              { key: 'xai', label: 'xAI API Key' },
-              { key: 'alibaba', label: 'Alibaba API Key' },
-              { key: 'deepgram', label: 'Deepgram API Key' }
-            ].map(({ key, label }) => (
+            {apiKeyProviders.map(({ key, label }) => (
               <div key={key} className="flex items-center gap-2">
                 <div className="relative flex-1 group">
                   <input
@@ -834,9 +819,17 @@ export const Settings: React.FC<SettingsProps> = ({
             currentModel={currentModel}
             setModel={setModel}
           />
+          <ChatModelSelector
+            currentChatModel={currentChatModel}
+            setChatModel={setCurrentChatModel}
+          />
           <VisionModelSelector
             currentVisionModel={currentVisionModel}
             setCurrentVisionModel={setCurrentVisionModel}
+          />
+          <TeleprompterModelSelector
+            currentTeleprompterModel={currentTeleprompterModel}
+            setTeleprompterModel={setCurrentTeleprompterModel}
           />
           <STTModelSelector
             currentSTTModel={currentSTTModel}

@@ -34,48 +34,48 @@ const languageOptions = [
       { value: "scala", label: "Scala" },
     ]
   },
-  // {
-  //   label: "Functional",
-  //   options: [
-  //     { value: "haskell", label: "Haskell" },
-  //     { value: "elixir", label: "Elixir" },
-  //   ]
-  // },
-  // {
-  //   label: "Database",
-  //   options: [
-  //     { value: "sql", label: "SQL" },
-  //     { value: "mysql", label: "MySQL" },
-  //     { value: "postgresql", label: "PostgreSQL" },
-  //     { value: "sqlite", label: "SQLite" },
-  //     { value: "mongodb", label: "MongoDB" },
-  //     { value: "redis", label: "Redis" },
-  //   ]
-  // },
-  // {
-  //   label: "Web Technologies",
-  //   options: [
-  //     { value: "html", label: "HTML" },
-  //     { value: "css", label: "CSS" },
-  //     { value: "react", label: "React" },
-  //     { value: "vue", label: "Vue" },
-  //     { value: "angular", label: "Angular" },
-  //     { value: "svelte", label: "Svelte" },
-  //     { value: "nextjs", label: "Next.js" },
-  //     { value: "graphql", label: "GraphQL" },
-  //     { value: "vanilla-js", label: "Vanilla JS" },
-  //   ]
-  // },
-  // {
-  //   label: "Scripting & Tools",
-  //   options: [
-  //     { value: "bash", label: "Bash" },
-  //     { value: "powershell", label: "PowerShell" },
-  //     { value: "yaml", label: "YAML" },
-  //     { value: "json", label: "JSON" },
-  //     { value: "markdown", label: "Markdown" },
-  //   ]
-  // }
+  {
+    label: "Functional",
+    options: [
+      { value: "haskell", label: "Haskell" },
+      { value: "elixir", label: "Elixir" },
+    ]
+  },
+  {
+    label: "Database",
+    options: [
+      { value: "sql", label: "SQL" },
+      { value: "mysql", label: "MySQL" },
+      { value: "postgresql", label: "PostgreSQL" },
+      { value: "sqlite", label: "SQLite" },
+      { value: "mongodb", label: "MongoDB" },
+      { value: "redis", label: "Redis" },
+    ]
+  },
+  {
+    label: "Web Technologies",
+    options: [
+      { value: "html", label: "HTML" },
+      { value: "css", label: "CSS" },
+      { value: "react", label: "React" },
+      { value: "vue", label: "Vue" },
+      { value: "angular", label: "Angular" },
+      { value: "svelte", label: "Svelte" },
+      { value: "nextjs", label: "Next.js" },
+      { value: "graphql", label: "GraphQL" },
+      { value: "vanilla-js", label: "Vanilla JS" },
+    ]
+  },
+  {
+    label: "Scripting & Tools",
+    options: [
+      { value: "bash", label: "Bash" },
+      { value: "powershell", label: "PowerShell" },
+      { value: "yaml", label: "YAML" },
+      { value: "json", label: "JSON" },
+      { value: "markdown", label: "Markdown" },
+    ]
+  }
 ];
 
 export const LanguageSelector: React.FC<LanguageSelectorProps> = ({

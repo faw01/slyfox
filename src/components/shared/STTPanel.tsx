@@ -6,6 +6,7 @@ import AudioVisualizer from './AudioVisualizer'
 import { Card, CardContent } from '../ui/card'
 import { Mic, Speaker, Power, StopCircle } from 'lucide-react'
 import { showToast } from '../../lib/utils'
+import { COMMAND_KEY } from '../../utils/platform'
 
 // Remove hardcoded API key - we'll get it from settings
 interface STTPanelProps {
@@ -22,7 +23,7 @@ const STTPanel: React.FC<STTPanelProps> = ({
   const [isRecording, setIsRecording] = useState(false)
   const [micTranscript, setMicTranscript] = useState<string>('')
   const [systemTranscript, setSystemTranscript] = useState<string>('')
-  const [micEnabled, setMicEnabled] = useState(true)
+  const [micEnabled, setMicEnabled] = useState(false)
   const [systemAudioEnabled, setSystemAudioEnabled] = useState(false)
   const [audioDevices, setAudioDevices] = useState<MediaDeviceInfo[]>([])
   const [micInputDeviceId, setMicInputDeviceId] = useState<string>('')
@@ -66,6 +67,26 @@ const STTPanel: React.FC<STTPanelProps> = ({
   
   // Add state to track question segments
   const [currentQuestionSegment, setCurrentQuestionSegment] = useState<string>('');
+  
+  // Add state to track chat messages with localStorage persistence
+  const [chatMessages, setChatMessages] = useState<Array<{
+    role: 'interviewer' | 'assistant';
+    content: string;
+    timestamp: string;
+  }>>(() => {
+    // Try to load saved messages from localStorage
+    try {
+      const saved = localStorage.getItem('teleprompter_chat_history');
+      return saved ? JSON.parse(saved) : [];
+    } catch (e) {
+      return [];
+    }
+  });
+  
+  // Save chat messages to localStorage whenever they change
+  useEffect(() => {
+    localStorage.setItem('teleprompter_chat_history', JSON.stringify(chatMessages));
+  }, [chatMessages]);
   
   // Load devices when panel opens
   useEffect(() => {
@@ -219,6 +240,14 @@ const STTPanel: React.FC<STTPanelProps> = ({
   const isDeepgramModel = () => {
     return currentSTTModel.toLowerCase().includes('deepgram');
   };
+  
+  // Check if current model is OpenAI
+  const isOpenAIModel = () => {
+    return currentSTTModel === 'whisper-1' || 
+           currentSTTModel === 'gpt-4o-transcribe' || 
+           currentSTTModel === 'gpt-4o-mini-transcribe' || 
+           currentSTTModel.toLowerCase().startsWith('local:');
+  };
 
   // Extract Deepgram model name from the full model string
   const getDeepgramModelName = () => {
@@ -237,14 +266,20 @@ const STTPanel: React.FC<STTPanelProps> = ({
     return currentSTTModel;
   };
 
+  // Add state for recording mode
+  const [recordingMode, setRecordingMode] = useState<'auto' | 'manual'>('auto');
+  const [isManualRecording, setIsManualRecording] = useState(false);
+  
   // Toggle recording
-  const toggleRecording = () => {
+  const toggleRecording = (isManual = false) => {
     const newRecordingState = !isRecording;
     setIsRecording(newRecordingState);
     
     if (newRecordingState) {
+      // Reset transcript when starting a new recording
       setMicTranscript('');
       setSystemTranscript('');
+      completeTranscriptRef.current = { mic: '', system: '' };
       
       const isDeepgram = isDeepgramModel();
       
@@ -261,13 +296,113 @@ const STTPanel: React.FC<STTPanelProps> = ({
           startDeepgramTranscription('mic');
         }
       }
+      
+      // Track if this was started manually
+      setIsManualRecording(isManual);
     } else {
       stopAudioMonitoring('system');
       stopAudioMonitoring('mic');
       closeDeepgramConnection('system');
       closeDeepgramConnection('mic');
+      
+      // If in manual mode and stopping, immediately process the transcript
+      if (isManual && systemTranscript && systemTranscript.trim().length > 10) {
+        generateAIResponse();
+      }
+      
+      setIsManualRecording(false);
     }
   };
+  
+  // Handle CMD+X shortcut for manual mode
+  useEffect(() => {
+    if (!isOpen) return;
+    
+    const handleKeyDown = (e: KeyboardEvent) => {
+      // Check for CMD+X (or CTRL+X on Windows)
+      if ((e.metaKey || e.ctrlKey) && e.key === 'x') {
+        // Only trigger in manual mode
+        if (recordingMode === 'manual') {
+          e.preventDefault();
+          // Toggle recording with manual flag
+          toggleRecording(true);
+        }
+      }
+    };
+    
+    // Listen for global shortcut event from electron
+    const handleManualRecordingToggle = () => {
+      if (recordingMode === 'manual' && isOpen) {
+        toggleRecording(true);
+      }
+    };
+    
+    window.addEventListener('keydown', handleKeyDown);
+    
+    // Register electron event listener
+    let cleanup: (() => void) | undefined;
+    if (window.electronAPI?.onToggleManualRecording) {
+      cleanup = window.electronAPI.onToggleManualRecording(handleManualRecordingToggle);
+    }
+    
+    return () => {
+      window.removeEventListener('keydown', handleKeyDown);
+      if (cleanup) cleanup();
+    };
+  }, [isOpen, recordingMode, isRecording]);
+  
+  // Add effect to generate AI response when system transcript changes - ONLY IN AUTO MODE
+  useEffect(() => {
+    // Only process in auto mode
+    if (recordingMode !== 'auto' || isManualRecording) return;
+    
+    // Clear any existing timeout when transcript changes
+    if (transcriptTimeoutRef.current) {
+      clearTimeout(transcriptTimeoutRef.current);
+      transcriptTimeoutRef.current = null;
+    }
+    
+    if (!systemTranscript || systemTranscript === lastProcessedTranscript || systemTranscript.trim().length < 10) {
+      return;
+    }
+    
+    // Process transcript for chat display
+    processTranscriptForChat(systemTranscript, lastProcessedTranscript);
+    
+    // Extract the latest question segment
+    const latestQuestion = extractLatestQuestion(systemTranscript);
+    
+    // Check if transcript appears to be a question or complete statement
+    const isQuestionOrStatement = /\?|\.|\!$/.test(latestQuestion.trim()) || 
+      latestQuestion.toLowerCase().includes('tell me about') ||
+      latestQuestion.toLowerCase().includes('what is') ||
+      latestQuestion.toLowerCase().includes('how would you');
+    
+    // Set a longer delay (2.5 seconds) after last word to generate response in AUTO mode
+    transcriptTimeoutRef.current = setTimeout(() => {
+      if (isQuestionOrStatement) {
+        generateAIResponse();
+      }
+    }, 2500); // 2.5 second delay
+    
+    // Clean up timeout on component unmount
+    return () => {
+      if (transcriptTimeoutRef.current) {
+        clearTimeout(transcriptTimeoutRef.current);
+        transcriptTimeoutRef.current = null;
+      }
+    };
+  }, [systemTranscript, recordingMode, isManualRecording]);
+  
+  // Always process transcript for chat in both auto and manual modes
+  useEffect(() => {
+    if (!systemTranscript || systemTranscript === lastProcessedTranscript) {
+      return;
+    }
+    
+    // Always update the chat display
+    processTranscriptForChat(systemTranscript, lastProcessedTranscript);
+  }, [systemTranscript]);
   
   // Setup Deepgram connection
   const startDeepgramTranscription = async (source: 'mic' | 'system') => {
@@ -286,7 +421,7 @@ const STTPanel: React.FC<STTPanelProps> = ({
       });
       
       // Store stream reference
-      if (source === 'mic') {
+        if (source === 'mic') {
         micStreamRef.current = stream;
       } else {
         systemStreamRef.current = stream;
@@ -513,7 +648,7 @@ const STTPanel: React.FC<STTPanelProps> = ({
         }
         micRecorderRef.current = null;
       }
-    } else {
+                } else {
       if (systemDeepgramSocketRef.current) {
         if (systemDeepgramSocketRef.current.readyState === WebSocket.OPEN) {
           systemDeepgramSocketRef.current.close();
@@ -546,7 +681,7 @@ const STTPanel: React.FC<STTPanelProps> = ({
       const audioContext = new AudioContext();
       if (source === 'system') {
         systemAudioContextRef.current = audioContext;
-          } else {
+                } else {
         micAudioContextRef.current = audioContext;
       }
       
@@ -661,7 +796,7 @@ const STTPanel: React.FC<STTPanelProps> = ({
     if (source === 'system') {
       setSystemAudioLevel(smoothedLevel);
       systemAnimationFrameRef.current = requestAnimationFrame(() => updateAudioLevel('system'));
-        } else {
+      } else {
       setMicAudioLevel(smoothedLevel);
       micAnimationFrameRef.current = requestAnimationFrame(() => updateAudioLevel('mic'));
     }
@@ -732,6 +867,51 @@ const STTPanel: React.FC<STTPanelProps> = ({
     }
   };
   
+  // Function to add a new message to the chat
+  const addChatMessage = (role: 'interviewer' | 'assistant', content: string) => {
+    const now = new Date();
+    const timestamp = `${now.getHours().toString().padStart(2, '0')}:${now.getMinutes().toString().padStart(2, '0')}:${now.getSeconds().toString().padStart(2, '0')}`;
+    
+    setChatMessages(prev => [...prev, {
+      role,
+      content,
+      timestamp
+    }]);
+  };
+  
+  // Extract segments from transcript and add to chat
+  const processTranscriptForChat = (transcript: string, lastTranscript: string) => {
+    // Don't process if this is the same transcript we've already processed
+    if (transcript === lastProcessedTranscript) return;
+    
+    // Only process complete sentences
+    const sentences = transcript.match(/[^.!?]+[.!?]+/g) || [];
+    if (sentences.length === 0) return;
+    
+    // Get the last complete sentence
+    const lastSentence = sentences[sentences.length - 1].trim();
+    
+    // Check if we already have messages
+    const lastMessage = chatMessages.length > 0 ? chatMessages[chatMessages.length - 1] : null;
+    
+    if (lastMessage && lastMessage.role === 'interviewer') {
+      // Check if this content is already in the message (avoid duplicates)
+      if (!lastMessage.content.includes(lastSentence)) {
+        // Update existing message with new content
+        setChatMessages(prev => 
+          prev.map((msg, index) => 
+            index === prev.length - 1 
+              ? {...msg, content: sentences.join(' ')}
+              : msg
+          )
+        );
+      }
+    } else if (sentences.join(' ').length > 15) {
+      // Create a new message only if we don't have one yet or last message was AI
+      addChatMessage('interviewer', sentences.join(' '));
+    }
+  };
+  
   // Function to generate AI response based on interviewer's question
   const generateAIResponse = async () => {
     if (!systemTranscript || systemTranscript === lastProcessedTranscript || systemTranscript.trim().length < 10) {
@@ -751,16 +931,22 @@ const STTPanel: React.FC<STTPanelProps> = ({
       }
       
       // Call the Teleprompter API to generate a response with just the latest question
+      console.log("Current teleprompter model:", window.__TELEPROMPTER_MODEL__);
+      console.log("Current main model:", window.__MODEL__);
       console.log("Calling teleprompter API with latest question:", latestQuestion.substring(0, 50) + "...");
       const result = await window.electronAPI.generateTeleprompterResponse(latestQuestion);
       
       if (result.success && result.data) {
         setAiResponse(result.data);
+        // Add AI response to chat
+        addChatMessage('assistant', result.data);
         setLastProcessedTranscript(systemTranscript);
       } else if (result.error) {
         console.error('Error generating AI response:', result.error);
         // Show simple error in the response area instead of leaving it blank
         setAiResponse(`I couldn't generate a response at this time. The system reported: ${result.error}`);
+        // Add error message to chat
+        addChatMessage('assistant', `I couldn't generate a response at this time. The system reported: ${result.error}`);
       }
       
       setIsGeneratingResponse(false);
@@ -769,47 +955,11 @@ const STTPanel: React.FC<STTPanelProps> = ({
       console.error('Error generating AI response:', error);
       // Show simple error in the response area
       setAiResponse("I couldn't generate a response due to a technical issue. Please try again later.");
+      // Add error message to chat
+      addChatMessage('assistant', "I couldn't generate a response due to a technical issue. Please try again later.");
       setIsGeneratingResponse(false);
     }
   };
-  
-  // Update the useEffect that triggers AI response generation
-  // Add effect to generate AI response when system transcript changes significantly
-  useEffect(() => {
-    // Clear any existing timeout when transcript changes
-    if (transcriptTimeoutRef.current) {
-      clearTimeout(transcriptTimeoutRef.current);
-      transcriptTimeoutRef.current = null;
-    }
-    
-    if (!systemTranscript || systemTranscript === lastProcessedTranscript || systemTranscript.trim().length < 10) {
-      return;
-    }
-    
-    // Extract the latest question segment
-    const latestQuestion = extractLatestQuestion(systemTranscript);
-    
-    // Check if transcript appears to be a question or complete statement
-    const isQuestionOrStatement = /\?|\.|\!$/.test(latestQuestion.trim()) || 
-      latestQuestion.toLowerCase().includes('tell me about') ||
-      latestQuestion.toLowerCase().includes('what is') ||
-      latestQuestion.toLowerCase().includes('how would you');
-    
-    // Set a delay of 2.5 seconds after last word to generate response
-    transcriptTimeoutRef.current = setTimeout(() => {
-      if (isQuestionOrStatement) {
-        generateAIResponse();
-      }
-    }, 2500); // 2.5 seconds delay
-    
-    // Clean up timeout on component unmount
-    return () => {
-      if (transcriptTimeoutRef.current) {
-        clearTimeout(transcriptTimeoutRef.current);
-        transcriptTimeoutRef.current = null;
-      }
-    };
-  }, [systemTranscript]);
 
   if (!isOpen) return null;
 
@@ -820,7 +970,7 @@ const STTPanel: React.FC<STTPanelProps> = ({
 
   return (
     <div 
-      className="absolute top-full left-0 mt-2 w-80 transform -translate-x-[calc(50%-12px)]"
+      className="absolute top-full left-[219%] mt-[20px] w-[930px] transform -translate-x-1/2"
       style={{ zIndex: 100 }}
       onClick={e => e.stopPropagation()}
     >
@@ -831,8 +981,39 @@ const STTPanel: React.FC<STTPanelProps> = ({
             <h3 className="font-medium text-white/90 select-none cursor-default">
               Teleprompter
             </h3>
-          </div>
-          
+            <button
+              onClick={() => {
+                // Clear chat messages
+                setChatMessages([]);
+                // Clear localStorage
+                localStorage.removeItem('teleprompter_chat_history');
+                // Reset transcripts
+                setMicTranscript('');
+                setSystemTranscript('');
+                setAiResponse('');
+                setLastProcessedTranscript('');
+                completeTranscriptRef.current = { mic: '', system: '' };
+              }}
+              className="p-1.5 rounded-full hover:bg-white/10 transition-colors cursor-default"
+              title="Clear conversation"
+            >
+                  <svg
+                    xmlns="http://www.w3.org/2000/svg"
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    stroke="currentColor"
+                    strokeWidth="2"
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                className="w-3.5 h-3.5 text-white/70"
+              >
+                <path d="M3 6h18"></path>
+                <path d="M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6"></path>
+                <path d="M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2"></path>
+                  </svg>
+                </button>
+              </div>
+              
           <div className="space-y-3">
             {/* Microphone Toggle */}
             <div className="flex items-center justify-between">
@@ -934,92 +1115,123 @@ const STTPanel: React.FC<STTPanelProps> = ({
                 />
               </div>
             )}
+            
+            {/* Recording Mode Selector */}
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <svg
+                  xmlns="http://www.w3.org/2000/svg"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth="2"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  className="w-4 h-4 text-white/70"
+                >
+                  <circle cx="12" cy="12" r="10"></circle>
+                  <circle cx="12" cy="12" r="3"></circle>
+                </svg>
+                <span className="text-[11px] leading-none select-none cursor-default">Recording Mode</span>
+            </div>
+              <div className="flex rounded overflow-hidden border border-white/10">
+                <button 
+                  onClick={() => setRecordingMode('auto')}
+                  className={`px-2 py-1 text-[11px] transition-colors cursor-default ${
+                    recordingMode === 'auto' 
+                      ? 'bg-white/20 text-white/90' 
+                      : 'bg-transparent text-white/60 hover:bg-white/10'
+                  }`}
+                >
+                  Auto
+                </button>
+                <button 
+                  onClick={() => setRecordingMode('manual')}
+                  className={`px-2 py-1 text-[11px] transition-colors cursor-default ${
+                    recordingMode === 'manual' 
+                      ? 'bg-white/20 text-white/90' 
+                      : 'bg-transparent text-white/60 hover:bg-white/10'
+                  }`}
+                >
+                  Manual ({COMMAND_KEY}+X)
+                </button>
+                </div>
+            </div>
           </div>
           
-          {/* Transcription Area */}
-          <div className="space-y-2">
-            {/* Microphone Transcription */}
-            {micEnabled && (
-              <div className="space-y-1">
-            <div className="flex justify-between items-center">
-                  <p className="text-xs text-white/70 select-none cursor-default">Microphone Transcription:</p>
-                  
-                  {/* Microphone Audio Level Indicator */}
-                  {isRecording && <AudioWaveform audioLevel={micAudioLevel} />}
-            </div>
-                <div className="relative">
-                  <p className="w-full h-[80px] overflow-y-auto overflow-wrap-anywhere border border-gray-700 rounded-lg p-2 bg-black/50 text-white/90 select-none cursor-default">
-                    {micTranscript}
-                  </p>
+          {/* Chat Interface */}
+          <div className="space-y-2 h-[350px] overflow-y-auto flex flex-col p-1">
+            {chatMessages.length === 0 && !isRecording && (
+              <div className="flex items-center justify-center h-full">
+                <span className="text-white/50 italic text-center">
+                  {systemAudioEnabled 
+                    ? "Start recording to capture the interviewer's questions and see AI responses here."
+                    : "Enable System Audio and start recording to capture the interview."}
+                </span>
                 </div>
-            </div>
             )}
-            
-            {/* System Audio Transcription */}
-            {systemAudioEnabled && (
-              <div className="space-y-1">
-                <div className="flex justify-between items-center">
-                  <p className="text-xs text-white/70 select-none cursor-default">System Audio Transcription:</p>
-                  
-                  {/* System Audio Level Indicator */}
-                  {isRecording && <AudioWaveform audioLevel={systemAudioLevel} />}
+            {chatMessages.map((message, index) => (
+              <div key={index} className={`flex flex-col w-full ${message.role === 'assistant' ? 'items-end' : 'items-start'}`}>
+                <div className={`max-w-[90%] rounded-lg p-3 ${
+                  message.role === 'interviewer' 
+                    ? 'bg-[#333b23]/50 border border-[#4d5939]/20' 
+                    : 'bg-indigo-950/30 border border-indigo-700/40'
+                }`}>
+                  <div className="flex justify-between items-center mb-1">
+                    <span className="text-xs font-medium text-white/90">
+                      {message.role === 'interviewer' ? 'Interviewer' : 'AI Suggested Response'}
+                    </span>
                 </div>
-                <div className="relative">
-                  <p className="w-full h-[80px] overflow-y-auto overflow-wrap-anywhere border border-gray-700 rounded-lg p-2 bg-black/50 text-white/90 select-none cursor-default">
-                    {systemTranscript}
-                  </p>
-                </div>
+                  <div className="text-sm text-white/90">
+                    {message.content}
               </div>
-            )}
-            
-            {/* AI Interview Assistant */}
-            {systemAudioEnabled && (
-              <div className="space-y-1 mt-4 border-t border-gray-700 pt-3">
-                <div className="flex justify-between items-center">
-                  <p className="text-xs text-white/70 select-none cursor-default">AI Suggested Response:</p>
+                  <div className="flex justify-end mt-1">
+                    <span className="text-[10px] text-white/50">
+                      {message.timestamp}
+                    </span>
           </div>
-          
-                <div className="relative">
-                  <div className="w-full h-[120px] overflow-y-auto overflow-wrap-anywhere border border-indigo-700/40 rounded-lg p-2 bg-indigo-950/30 text-white/90 select-none cursor-default">
-                    {isGeneratingResponse ? (
-                      <div className="flex items-center justify-center h-full">
-                        <div className="flex space-x-1 items-center">
-                          <div className="w-1.5 h-1.5 bg-indigo-500/70 rounded-full animate-bounce" style={{ animationDelay: '0ms' }}></div>
-                          <div className="w-1.5 h-1.5 bg-indigo-500/70 rounded-full animate-bounce" style={{ animationDelay: '150ms' }}></div>
-                          <div className="w-1.5 h-1.5 bg-indigo-500/70 rounded-full animate-bounce" style={{ animationDelay: '300ms' }}></div>
-                          <span className="ml-2 text-sm text-indigo-300/90 select-none cursor-default">Generating response...</span>
-                  </div>
-                    </div>
-                    ) : aiResponse ? (
-                      aiResponse
-                    ) : (
-                      <span className="text-white/50 italic select-none cursor-default">
-                        The AI assistant will suggest responses to interview questions detected from the system audio.
+          </div>
+              </div>
+            ))}
+            
+            {isGeneratingResponse && (
+              <div className="flex flex-col w-full items-end">
+                <div className="max-w-[90%] rounded-lg p-3 bg-indigo-950/30 border border-indigo-700/40">
+                  <div className="flex justify-between items-center mb-1">
+                    <span className="text-xs font-medium text-white/90">
+                      AI Suggested Response
                       </span>
-                  )}
+                  </div>
+                  <div className="flex items-center space-x-1">
+                    <div className="w-1.5 h-1.5 bg-indigo-500/70 rounded-full animate-bounce" style={{ animationDelay: '0ms' }}></div>
+                    <div className="w-1.5 h-1.5 bg-indigo-500/70 rounded-full animate-bounce" style={{ animationDelay: '150ms' }}></div>
+                    <div className="w-1.5 h-1.5 bg-indigo-500/70 rounded-full animate-bounce" style={{ animationDelay: '300ms' }}></div>
+                    <span className="ml-2 text-sm text-indigo-300/90 select-none cursor-default">Generating response...</span>
+                    </div>
                 </div>
                 </div>
+              )}
             </div>
-          )}
-                </div>
           
           {/* Controls */}
           <div className="flex justify-center">
                 <button
-                onClick={toggleRecording}
+              onClick={() => toggleRecording(recordingMode === 'manual')}
               className={`flex items-center gap-2 px-3 py-1.5 rounded-full transition-colors cursor-default select-none ${
                 isRecording
                   ? 'bg-red-500/50 hover:bg-red-500/70'
                   : 'bg-green-500/50 hover:bg-green-500/70'
               }`}
               disabled={(!micEnabled && !systemAudioEnabled) || 
-                         (micEnabled && microphonePermissionGranted === false) ||
-                         (systemAudioEnabled && outputDevices.length === 0)}
+                        (micEnabled && microphonePermissionGranted === false) ||
+                        (systemAudioEnabled && outputDevices.length === 0)}
               >
                 {isRecording ? (
                   <>
                   <span className="block w-3 h-3 bg-red-500 rounded-sm"></span>
-                  <span className="select-none cursor-default">Stop Recording</span>
+                  <span className="select-none cursor-default">
+                    {recordingMode === 'manual' ? `Stop Recording (${COMMAND_KEY}+X)` : 'Stop Recording'}
+                  </span>
                   </>
                 ) : (
                   <>
@@ -1036,7 +1248,9 @@ const STTPanel: React.FC<STTPanelProps> = ({
                     <circle cx="12" cy="12" r="10" />
                     <path d="M12 8v8M8 12h8" />
                     </svg>
-                  <span className="select-none cursor-default">Start Recording</span>
+                  <span className="select-none cursor-default">
+                    {recordingMode === 'manual' ? `Start Recording (${COMMAND_KEY}+X)` : 'Start Recording'}
+                  </span>
                   </>
                 )}
               </button>

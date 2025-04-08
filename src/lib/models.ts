@@ -5,6 +5,8 @@ import { ChatCompletionMessageParam, ChatCompletionCreateParamsBase, ChatComplet
 import axios from "axios"
 import { ollama } from "./ollama-client"
 import { ElectronAPI } from "../types/electron"
+import { generateText, generateObject } from "ai"
+import { createAISDKClients } from "./ai-sdk-clients"
 
 // Import centralized schemas
 import { 
@@ -27,11 +29,12 @@ export interface AIModel {
   id: string
   name: string
   description: string
-  provider: "openai" | "anthropic" | "google" | "deepseek" | "xai" | "meta" | "alibaba"
+  provider: "openai" | "anthropic" | "google" | "deepseek" | "meta" | "deepgram"
   modelId: string
   maxTokens: number
   reasoning_effort?: "low" | "medium" | "high"
   isVisionModel?: boolean
+  isSTTModel?: boolean
   thinking?: {
     type: string
     budget_tokens: number
@@ -44,132 +47,75 @@ export const allModels: AIModel[] = [
   {
     id: "claude-3-7-sonnet-latest",
     name: "Claude 3.7 Sonnet",
-    description: "Excellent | 2150 CF Elo.",
+    description: "Superior | ??? CF Elo",
     provider: "anthropic",
-    modelId: "claude-3-7-sonnet-20250219",
-    maxTokens: 21_333,
-    isVisionModel: false
-  },
-  {
-    id: "claude-3-7-sonnet-vision",
-    name: "Claude 3.7 Sonnet",
-    description: "Excellent Vision | 2150 CF Elo.",
-    provider: "anthropic",
-    modelId: "claude-3-7-sonnet-20250219",
-    maxTokens: 21_333,
+    modelId: "claude-3-7-sonnet-latest",
+    maxTokens: 21333,
     isVisionModel: true
   },
   {
     id: "claude-3-7-sonnet-thinking-high",
     name: "Claude 3.7 Sonnet Thinking (high)",
-    description: "Outstanding | 2300 CF Elo.",
+    description: "Outstanding | ??? CF Elo",
     provider: "anthropic",
-    modelId: "claude-3-7-sonnet-20250219",
-    maxTokens: 21_333,
+    modelId: "claude-3-7-sonnet-latest",
+    maxTokens: 21333,
     thinking: {
       type: "enabled",
       budget_tokens: 4096
     },
-    isVisionModel: false
-  },
-  {
-    id: "claude-3-7-sonnet-vision-thinking-high",
-    name: "Claude 3.7 Sonnet Thinking (high)",
-    description: "Outstanding Vision | 2300 CF Elo.",
-    provider: "anthropic",
-    modelId: "claude-3-7-sonnet-20250219",
-    maxTokens: 21_333,
-    isVisionModel: true,
-    thinking: {
-      type: "enabled",
-      budget_tokens: 4096
-    }
+    isVisionModel: true
   },
   {
     id: "claude-3-7-sonnet-thinking-medium",
     name: "Claude 3.7 Sonnet Thinking (medium)",
-    description: "Superior | 2250 CF Elo.",
+    description: "Excellent | ??? CF Elo",
     provider: "anthropic",
-    modelId: "claude-3-7-sonnet-20250219",
-    maxTokens: 21_333,
+    modelId: "claude-3-7-sonnet-latest",
+    maxTokens: 21333,
     thinking: {
       type: "enabled",
       budget_tokens: 2048
     },
-    isVisionModel: false
-  },
-  {
-    id: "claude-3-7-sonnet-vision-thinking-medium",
-    name: "Claude 3.7 Sonnet Thinking (medium)",
-    description: "Superior Vision | 2250 CF Elo.",
-    provider: "anthropic",
-    modelId: "claude-3-7-sonnet-20250219",
-    maxTokens: 21_333,
-    isVisionModel: true,
-    thinking: {
-      type: "enabled",
-      budget_tokens: 2048
-    }
+    isVisionModel: true
   },
   {
     id: "claude-3-7-sonnet-thinking-low",
     name: "Claude 3.7 Sonnet Thinking (low)",
-    description: "Great | 2200 CF Elo.",
+    description: "Premium | ??? CF Elo",
     provider: "anthropic",
-    modelId: "claude-3-7-sonnet-20250219",
-    maxTokens: 21_333,
+    modelId: "claude-3-7-sonnet-latest",
+    maxTokens: 21333,
     thinking: {
       type: "enabled",
       budget_tokens: 1024
     },
-    isVisionModel: false
-  },
-  {
-    id: "claude-3-7-sonnet-vision-thinking-low",
-    name: "Claude 3.7 Sonnet Thinking (low)",
-    description: "Great Vision | 2200 CF Elo.",
-    provider: "anthropic",
-    modelId: "claude-3-7-sonnet-20250219",
-    maxTokens: 21_333,
-    isVisionModel: true,
-    thinking: {
-      type: "enabled",
-      budget_tokens: 1024
-    }
+    isVisionModel: true
   },
   {
     id: "claude-3-5-sonnet-latest",
     name: "Claude 3.5 Sonnet v2",
-    description: "Very Good | 2100 CF Elo.",
-    provider: "anthropic",
-    modelId: "claude-3-5-sonnet-20240620",
-    maxTokens: 21_333,
-    isVisionModel: false
-  },
-  {
-    id: "claude-3-5-sonnet-vision",
-    name: "Claude 3.5 Sonnet v2",
-    description: "Smart, but expensive | 717 CF Elo.",
+    description: "Advanced | ??? CF Elo",
     provider: "anthropic",
     modelId: "claude-3-5-sonnet-latest",
-    maxTokens: 4096,
+    maxTokens: 21333,
     isVisionModel: true
   },
   {
     id: "claude-3-5-haiku-latest",
     name: "Claude 3.5 Haiku",
-    description: "Fast | 1950 CF Elo.",
+    description: "Fast | ??? CF Elo",
     provider: "anthropic",
-    modelId: "claude-3-5-haiku-20240620",
-    maxTokens: 21_333,
-    isVisionModel: false
+    modelId: "claude-3-5-haiku-latest",
+    maxTokens: 21333,
+    isVisionModel: true
   },
 
   // OpenAI Models
   {
     id: "gpt-4o",
     name: "GPT-4o",
-    description: "Default | 808 CF Elo.",
+    description: "Standard | 808 CF Elo",
     provider: "openai",
     modelId: "gpt-4o",
     maxTokens: 4096,
@@ -178,16 +124,7 @@ export const allModels: AIModel[] = [
   {
     id: "gpt-4.5",
     name: "GPT-4.5",
-    description: "Latest OpenAI | ~2100 CF Elo.",
-    provider: "openai",
-    modelId: "gpt-4.5-preview",
-    maxTokens: 4096,
-    isVisionModel: false
-  },
-  {
-    id: "gpt-4.5-vision",
-    name: "GPT-4.5",
-    description: "Latest OpenAI | ~2100 CF Elo.",
+    description: "Latest | 850 CF Elo",
     provider: "openai",
     modelId: "gpt-4.5-preview",
     maxTokens: 4096,
@@ -196,25 +133,25 @@ export const allModels: AIModel[] = [
   {
     id: "o1",
     name: "o1",
-    description: "Expensive | 1891 CF Elo.",
+    description: "Expensive | 1891 CF Elo",
     provider: "openai",
     modelId: "o1",
     maxTokens: 4096,
     isVisionModel: true
   },
   {
-    id: "o1-mini",
-    name: "o1-mini",
-    description: "Decent | 1650 CF Elo.",
+    id: "o1-pro",
+    name: "o1-pro",
+    description: "Unknown | ??? CF Elo",
     provider: "openai",
-    modelId: "o1-mini",
+    modelId: "o1-pro",
     maxTokens: 4096,
-    isVisionModel: false
+    isVisionModel: true
   },
   {
     id: "o3-mini-low",
     name: "o3-mini (low)",
-    description: "Quick | 1697 CF Elo.",
+    description: "Quick | 1697 CF Elo",
     provider: "openai",
     modelId: "o3-mini",
     maxTokens: 4096,
@@ -224,7 +161,7 @@ export const allModels: AIModel[] = [
   {
     id: "o3-mini-medium",
     name: "o3-mini (medium)",
-    description: "Balanced | 1997 CF Elo.",
+    description: "Balanced | 1997 CF Elo",
     provider: "openai",
     modelId: "o3-mini",
     maxTokens: 4096,
@@ -234,7 +171,7 @@ export const allModels: AIModel[] = [
   {
     id: "o3-mini-high",
     name: "o3-mini (high)",
-    description: "Best | 2073 CF Elo.",
+    description: "Superior | 2073 CF Elo",
     provider: "openai",
     modelId: "o3-mini",
     maxTokens: 4096,
@@ -244,7 +181,7 @@ export const allModels: AIModel[] = [
   {
     id: "gpt-4o-mini",
     name: "GPT-4o mini",
-    description: "Not recommended | ~400 CF Elo.",
+    description: "Affordable | 750 CF Elo",
     provider: "openai",
     modelId: "gpt-4o-mini",
     maxTokens: 4096,
@@ -253,57 +190,39 @@ export const allModels: AIModel[] = [
 
   // Google Models
   {
+    id: "gemini-2.5-pro-preview",
+    name: "Gemini 2.5 Pro Preview",
+    description: "Thinking | ??? CF Elo",
+    provider: "google",
+    modelId: "gemini-2.5-pro-preview-03-25",
+    maxTokens: 65536,
+    isVisionModel: true
+  },
+  {
+    id: "gemini-2.5-pro-exp",
+    name: "Gemini 2.5 Pro Experimental",
+    description: "Experimental | ??? CF Elo",
+    provider: "google",
+    modelId: "gemini-2.5-pro-exp-03-25",
+    maxTokens: 65536,
+    isVisionModel: true
+  },
+  {
     id: "gemini-2.0-flash",
     name: "Gemini 2.0 Flash",
-    description: "All rounder | 1800 CF Elo.",
+    description: "Versatile | ??? CF Elo",
     provider: "google",
     modelId: "gemini-2.0-flash",
-    maxTokens: 4096,
-    isVisionModel: true
-  },
-  {
-    id: "gemini-2-thinking",
-    name: "Gemini 2.0 Flash Thinking",
-    description: "Experimental reasoning | 1900 CF Elo.",
-    provider: "google",
-    modelId: "gemini-2.0-flash-thinking-exp-01-21",
-    maxTokens: 4096,
-    isVisionModel: true
-  },
-  {
-    id: "gemini-2-pro",
-    name: "Gemini 2.0 Pro",
-    description: "big boy | 2000 CF Elo.",
-    provider: "google",
-    modelId: "gemini-2.0-pro-exp-02-05",
-    maxTokens: 4096,
+    maxTokens: 8192,
     isVisionModel: true
   },
   {
     id: "gemini-2.0-flash-lite",
     name: "Gemini 2.0 Flash Lite",
-    description: "Fast AF but limited | 1650 CF Elo.",
+    description: "Efficient | ??? CF Elo",
     provider: "google",
-    modelId: "gemini-2.0-flash-lite-preview-02-05",
-    maxTokens: 4096,
-    isVisionModel: true
-  },
-  {
-    id: "gemini-1.5-flash",
-    name: "Gemini 1.5 Flash",
-    description: "old but gold | 1500 CF Elo.",
-    provider: "google",
-    modelId: "gemini-1.5-flash",
-    maxTokens: 4096,
-    isVisionModel: true
-  },
-  {
-    id: "gemini-1.5-pro",
-    name: "Gemini 1.5 Pro",
-    description: "old but gold | 1600 CF Elo.",
-    provider: "google",
-    modelId: "gemini-1.5-pro",
-    maxTokens: 4096,
+    modelId: "gemini-2.0-flash-lite",
+    maxTokens: 8192,
     isVisionModel: true
   },
 
@@ -311,116 +230,98 @@ export const allModels: AIModel[] = [
   {
     id: "deepseek-r1",
     name: "DeepSeek R1",
-    description: "Smart, but slow | 2029 CF Elo.",
+    description: "Smart, but slow | 2029 CF Elo",
     provider: "deepseek",
     modelId: "deepseek-r1",
     maxTokens: 4096,
     isVisionModel: false
   },
   {
-    id: "deepseek-r1-distill-1.5b",
-    name: "DeepSeek R1 (Distill 1.5B)",
-    description: "Tiny | 954 CF Elo.",
+    id: "deepseek-v3",
+    name: "DeepSeek V3",
+    description: "Improved | ??? CF Elo",
     provider: "deepseek",
-    modelId: "deepseek-r1-distill-1.5b",
+    modelId: "deepseek-v3",
     maxTokens: 4096,
-    isVisionModel: false
-  },
-  {
-    id: "deepseek-r1-distill-7b",
-    name: "DeepSeek R1 (Distill 7B)",
-    description: "Small | 1189 CF Elo.",
-    provider: "deepseek",
-    modelId: "deepseek-r1-distill-7b",
-    maxTokens: 4096,
-    isVisionModel: false
-  },
-  {
-    id: "deepseek-r1-distill-14b",
-    name: "DeepSeek R1 (Distill 14B)",
-    description: "Medium | 1481 CF Elo.",
-    provider: "deepseek",
-    modelId: "deepseek-r1-distill-14b",
-    maxTokens: 4096,
-    isVisionModel: false
-  },
-  {
-    id: "deepseek-r1-distill-32b",
-    name: "DeepSeek R1 (Distill 32B)",
-    description: "Large | 1691 CF Elo.",
-    provider: "deepseek",
-    modelId: "deepseek-r1-distill-32b",
-    maxTokens: 4096,
-    isVisionModel: false
-  },
-  {
-    id: "deepseek-r1-distill-8b",
-    name: "DeepSeek R1 (Distill 8B)",
-    description: "Small+ | 1205 CF Elo.",
-    provider: "deepseek",
-    modelId: "deepseek-r1-distill-8b",
-    maxTokens: 4096,
-    isVisionModel: false
-  },
-  {
-    id: "deepseek-r1-distill-70b",
-    name: "DeepSeek R1 (Distill 70B)",
-    description: "Huge | 1633 CF Elo.",
-    provider: "deepseek",
-    modelId: "deepseek-r1-distill-70b",
-    maxTokens: 4096,
-    isVisionModel: false
+    isVisionModel: true
   },
   
-  // Ollama Models
-  {
-    id: "qwen-2.5-3b",
-    name: "Qwen 2.5 3B",
-    description: "Fast | ~1200 CF Elo.",
-    provider: "alibaba",
-    modelId: "qwen:2.5-3b",
-    maxTokens: 4096,
-    isVisionModel: false
-  },
+  // Llama Models
   {
     id: "llama-3.3",
     name: "Llama 3.3",
-    description: "Versatile | ~1600 CF Elo.",
+    description: "Fast | ??? CF Elo",
     provider: "meta",
     modelId: "llama:3.3",
     maxTokens: 4096,
     isVisionModel: false
   },
-
-  // xAI (Grok) Models
   {
-    id: "grok-2-1212",
-    name: "Grok 2",
-    description: "Powerful reasoning and general knowledge | xAI",
-    provider: "xai",
-    modelId: "grok-2-1212",
-    maxTokens: 4096,
+    id: "llama-4-scout",
+    name: "Llama 4 Scout",
+    description: "Lightweight | ??? CF Elo",
+    provider: "meta",
+    modelId: "llama:4-scout",
+    maxTokens: 8192,
     isVisionModel: false
   },
   {
-    id: "grok-2-vision-1212",
-    name: "Grok 2 Vision",
-    description: "Vision capabilities with powerful reasoning | xAI",
-    provider: "xai",
-    modelId: "grok-2-vision-1212",
-    maxTokens: 4096,
+    id: "llama-4-maverick",
+    name: "Llama 4 Maverick",
+    description: "Powerful | ??? CF Elo",
+    provider: "meta",
+    modelId: "llama:4-maverick",
+    maxTokens: 8192,
     isVisionModel: true
   },
 
-  // Alibaba (Qwen) Models
+  // OpenAI STT Models
   {
-    id: "qwen-vision",
-    name: "Qwen Vision",
-    description: "Multimodal model with vision capabilities | Alibaba",
-    provider: "alibaba",
-    modelId: "qwen-vision",
+    id: "whisper-1",
+    name: "Whisper-1",
+    description: "General-purpose speech recognition model",
+    provider: "openai",
+    modelId: "whisper-1",
     maxTokens: 4096,
-    isVisionModel: true
+    isSTTModel: true
+  },
+  {
+    id: "gpt-4o-transcribe",
+    name: "GPT-4o Transcribe",
+    description: "Speech-to-text model powered by GPT-4o",
+    provider: "openai",
+    modelId: "gpt-4o-transcribe",
+    maxTokens: 4096,
+    isSTTModel: true
+  },
+  {
+    id: "gpt-4o-mini-transcribe",
+    name: "GPT-4o mini Transcribe",
+    description: "Speech-to-text model powered by GPT-4o mini",
+    provider: "openai",
+    modelId: "gpt-4o-mini-transcribe",
+    maxTokens: 4096,
+    isSTTModel: true
+  },
+  
+  // Deepgram STT Models
+  {
+    id: "deepgram-nova-3",
+    name: "Nova-3",
+    description: "Deepgram Nova-3 STT model",
+    provider: "deepgram",
+    modelId: "nova-3",
+    maxTokens: 0,
+    isSTTModel: true
+  },
+  {
+    id: "deepgram-nova-2",
+    name: "Nova-2",
+    description: "Deepgram Nova-2 STT model",
+    provider: "deepgram",
+    modelId: "nova-2",
+    maxTokens: 0,
+    isSTTModel: true
   },
 ]
 
@@ -449,9 +350,8 @@ console.log("Models by provider:", {
   openai: models.filter(m => m.provider === "openai").length,
   anthropic: models.filter(m => m.provider === "anthropic").length,
   deepseek: models.filter(m => m.provider === "deepseek").length,
-  xai: models.filter(m => m.provider === "xai").length,
   meta: models.filter(m => m.provider === "meta").length,
-  alibaba: models.filter(m => m.provider === "alibaba").length
+  deepgram: models.filter(m => m.provider === "deepgram").length
 })
 
 // Enhanced debugging for Google models specifically
@@ -516,9 +416,7 @@ export class AIModelManager {
   private anthropic: AnthropicClient | null = null
   private google: GoogleGenerativeAI | null = null
   private deepseekApiKey: string | null = null
-  private xaiApiKey: string | null = null
   private metaApiKey: string | null = null
-  private alibabaApiKey: string | null = null
   private initialized: boolean = false
   private isMainProcess: boolean
   private store: any
@@ -533,8 +431,15 @@ export class AIModelManager {
     
     this.initializeClients().then(() => {
       this.initialized = true
+      
+      // Run a quick verification of the AI SDK
+      this.verifyAISDK().then(({ isSDKWorking, results }) => {
+        console.log(`Vercel AI SDK functioning: ${isSDKWorking}`, results)
+      }).catch(error => {
+        console.error('Error verifying AI SDK:', error)
+      })
     }).catch(error => {
-      console.error('Failed to initialize AI clients:', error)
+      console.error('Error initializing AI clients:', error)
     })
   }
 
@@ -562,14 +467,8 @@ export class AIModelManager {
       if (apiKeys.deepseek) {
         this.deepseekApiKey = apiKeys.deepseek
       }
-      if (apiKeys.xai) {
-        this.xaiApiKey = apiKeys.xai
-      }
       if (apiKeys.meta) {
         this.metaApiKey = apiKeys.meta
-      }
-      if (apiKeys.alibaba) {
-        this.alibabaApiKey = apiKeys.alibaba
       }
     } catch (error) {
       console.error('Failed to initialize AI clients:', error)
@@ -721,115 +620,125 @@ export class AIModelManager {
       throw new Error("Anthropic client not initialized")
     }
 
-    // Properly format messages for Claude's API
-    const formattedMessages = messages.map(message => {
-      const role = message.role === 'system' ? 'user' : message.role as 'user' | 'assistant'
+    try {
+      // First attempt to use Vercel AI SDK
+      const apiKeys = {
+        openai: null,
+        anthropic: this.anthropic ? this.anthropic.apiKey : null,
+        google: null
+      };
       
-      if (typeof message.content === 'string') {
-        return { role, content: message.content }
-      }
+      const clients = createAISDKClients(apiKeys);
       
-      // Handle array of content (text + images)
-      if (Array.isArray(message.content)) {
-        return {
-          role,
-          content: message.content.map(item => {
-            if (item.type === 'text') {
-              return { type: 'text', text: item.text }
-            } else if (item.type === 'image_url') {
-              return {
-                type: 'image',
-                source: {
-                  type: 'base64',
-                  media_type: 'image/png',
-                  data: item.image_url.url.split(',')[1] // Remove the data:image/png;base64, prefix
-                }
-              }
+      if (clients.anthropic) {
+        // Check if we need structured output
+        const lastMessage = messages[messages.length - 1];
+        const content = typeof lastMessage.content === 'string' ? lastMessage.content : lastMessage.content[0]?.text;
+        let needsStructuredOutput = false;
+        let schema = null;
+        
+        if (content) {
+          if (content.includes('Extract the coding problem')) {
+            schema = getSchemaForTask('extract');
+            needsStructuredOutput = true;
+          } else if (content.includes('Generate a solution')) {
+            schema = getSchemaForTask('solve');
+            needsStructuredOutput = true;
+          } else if (content.includes('Debug this code')) {
+            schema = getSchemaForTask('debug');
+            needsStructuredOutput = true;
+          }
+        }
+        
+        // Get appropriate system message based on task
+        let systemMessage = "";
+        if (isClaudeModel(model.modelId)) {
+          if (content) {
+            if (content.includes('Extract the coding problem')) {
+              systemMessage = getClaudeSystemMessage('extract');
+            } else if (content.includes('Generate a solution')) {
+              systemMessage = getClaudeSystemMessage('solve');
+            } else if (content.includes('Debug this code')) {
+              systemMessage = getClaudeSystemMessage('debug');
             }
-            return item
-          })
+          }
+        }
+        
+        // Combine messages into a single prompt
+        const userMessages = messages.map(m => {
+          const content = typeof m.content === 'string' 
+            ? m.content 
+            : Array.isArray(m.content) 
+              ? m.content.map(c => typeof c === 'object' && c.text ? c.text : typeof c === 'string' ? c : '').join("\n")
+              : '';
+          return content;
+        }).join("\n\n");
+        
+        // For structured output with Anthropic
+        if (needsStructuredOutput && schema) {
+          try {
+            const result = await generateObject({
+              model: clients.anthropic(model.modelId),
+              // Vercel AI SDK uses a different approach to define schema for non-OpenAI models
+              // It automatically handles schema transformation
+              schema: schema,
+              prompt: userMessages,
+              system: systemMessage
+            });
+            
+            return {
+              content: JSON.stringify(result),
+              _request_id: `ai-sdk-${Date.now()}`
+            };
+          } catch (error) {
+            console.error("Error using Vercel AI SDK generateObject for Anthropic:", error);
+            // Continue to fallback
+          }
+        } 
+        // For regular completions
+        else {
+          try {
+            const { text } = await generateText({
+              model: clients.anthropic(model.modelId),
+              prompt: userMessages,
+              system: systemMessage
+            });
+            
+            return {
+              content: text,
+              _request_id: `ai-sdk-${Date.now()}`
+            };
+          } catch (error) {
+            console.error("Error using Vercel AI SDK generateText for Anthropic:", error);
+            // Continue to fallback
+          }
         }
       }
+    } catch (error) {
+      console.error("Error using Vercel AI SDK for Anthropic, falling back to native API:", error);
+      // Fall back to original implementation
+    }
+    
+    // Fallback to original implementation
+    // For Claude models, determine the task type and use appropriate system message
+    let systemMessage;
+    if (isClaudeModel(model.modelId)) {
+      const lastMessage = messages[messages.length - 1];
+      const lastContent = typeof lastMessage.content === 'string' ? lastMessage.content : lastMessage.content[0]?.text;
       
-      return { role, content: JSON.stringify(message.content) }
-    })
-
-    const response = await this.anthropic.messages.create({
-      model: model.modelId,
-      max_tokens: model.maxTokens,
-      messages: formattedMessages,
-      system: options.systemPrompt
-    })
-
-    if (!response.content.length) {
-      throw new Error("Empty response from Anthropic API")
-    }
-
-    const firstContent = response.content[0]
-    
-    if (firstContent.type !== 'text') {
-      throw new Error(`Expected text response, got ${firstContent.type}`)
-    }
-
-    const textContent = firstContent as { type: 'text'; text: string }
-    
-    // For Claude models with system prompt, ensure the response starts with { and ends with }
-    if (options.systemPrompt) {
-      let responseText = textContent.text.trim()
-      if (!responseText.startsWith('{')) {
-        responseText = '{' + responseText
-      }
-      if (!responseText.endsWith('}')) {
-        responseText = responseText + '}'
-      }
-      return {
-        content: responseText,
-        _request_id: response.id
+      if (lastContent.includes('Extract the coding problem')) {
+        systemMessage = getClaudeSystemMessage('extract');
+      } else if (lastContent.includes('Generate a solution')) {
+        systemMessage = getClaudeSystemMessage('solve');
+      } else if (lastContent.includes('Debug this code')) {
+        systemMessage = getClaudeSystemMessage('debug');
       }
     }
-    
-    return {
-      content: textContent.text,
-      _request_id: response.id
-    }
-  }
 
-  // Add implementation for xAI API
-  private async callXaiApi(model: AIModel, messages: Array<{ role: string; content: any }>, options: { signal?: AbortSignal } = {}) {
-    if (!this.xaiApiKey) {
-      throw new Error("xAI API key not initialized")
-    }
-
-    // Create a temporary OpenAI client with xAI base URL
-    const xaiClient = new OpenAI({
-      apiKey: this.xaiApiKey,
-      baseURL: 'https://api.x.ai/v1'
+    return this.callAnthropicApi(model, messages, { 
+      signal: options.signal, 
+      systemPrompt: systemMessage 
     });
-
-    const typedMessages = messages.map(msg => ({
-      role: msg.role as "system" | "user" | "assistant",
-      content: typeof msg.content === 'string' ? msg.content : JSON.stringify(msg.content)
-    }));
-
-    const requestOptions: OpenAI.Chat.ChatCompletionCreateParams = {
-      model: model.modelId,
-      messages: typedMessages,
-      max_tokens: model.maxTokens
-    };
-
-    const response = await xaiClient.chat.completions.create(
-      requestOptions,
-      { signal: options.signal }
-    ) as ChatCompletion;
-
-    if (!response.choices?.[0]?.message?.content) {
-      throw new Error("Empty response from xAI API")
-    }
-
-    return {
-      content: response.choices[0].message.content,
-      _request_id: response.id
-    }
   }
 
   // Add implementation for Meta API
@@ -859,41 +768,6 @@ export class AIModelManager {
 
     if (!response.data.choices?.[0]?.message?.content) {
       throw new Error("Empty response from Meta API")
-    }
-
-    return {
-      content: response.data.choices[0].message.content,
-      _request_id: response.data.id
-    }
-  }
-
-  // Add implementation for Alibaba API
-  private async callAlibabaApi(model: AIModel, messages: Array<{ role: string; content: any }>, options: { signal?: AbortSignal } = {}) {
-    if (!this.alibabaApiKey) {
-      throw new Error("Alibaba API key not initialized")
-    }
-
-    const response = await axios.post(
-      'https://api.alibaba.com/v1/chat/completions',
-      {
-        model: model.modelId,
-        messages: messages.map(m => ({
-          role: m.role,
-          content: typeof m.content === 'string' ? m.content : JSON.stringify(m.content)
-        })),
-        max_tokens: model.maxTokens,
-      },
-      {
-        headers: {
-          'Authorization': `Bearer ${this.alibabaApiKey}`,
-          'Content-Type': 'application/json',
-        },
-        signal: options.signal
-      }
-    )
-
-    if (!response.data.choices?.[0]?.message?.content) {
-      throw new Error("Empty response from Alibaba API")
     }
 
     return {
@@ -971,6 +845,103 @@ export class AIModelManager {
       case "openai": {
         if (!this.openai) throw new Error("OpenAI client not initialized")
         
+        try {
+          // First attempt to use Vercel AI SDK
+          const apiKeys = {
+            openai: this.openai ? this.openai.apiKey : null,
+            anthropic: null,
+            google: null
+          };
+          
+          const clients = createAISDKClients(apiKeys);
+          
+          if (clients.openai) {
+            // Only include reasoning_effort for "o" models
+            const isOModel = model.modelId.startsWith('o');
+            const aiOptions: any = {};
+            
+            if (isOModel && model.reasoning_effort) {
+              aiOptions.reasoning_effort = model.reasoning_effort;
+            }
+            
+            // Check if we need structured output
+            const lastMessage = messages[messages.length - 1];
+            const content = typeof lastMessage.content === 'string' ? lastMessage.content : lastMessage.content[0]?.text;
+            let needsStructuredOutput = false;
+            let schema = null;
+            
+            if (content) {
+              if (content.includes('Extract the coding problem')) {
+                schema = getSchemaForTask('extract');
+                needsStructuredOutput = true;
+              } else if (content.includes('Generate a solution')) {
+                schema = getSchemaForTask('solve');
+                needsStructuredOutput = true;
+              } else if (content.includes('Debug this code')) {
+                schema = getSchemaForTask('debug');
+                needsStructuredOutput = true;
+              }
+            }
+            
+            // Prepare the prompt
+            // Add developer role message for OpenAI models
+            const developerMessage = "You are a coding assistant that provides precise, accurate responses.";
+            
+            // Combine messages into a single prompt
+            const prompt = developerMessage + "\n\n" + messages.map(m => {
+              const role = m.role === 'system' ? 'developer' : m.role;
+              const content = typeof m.content === 'string' 
+                ? m.content 
+                : Array.isArray(m.content) 
+                  ? m.content.map(c => typeof c === 'object' && c.text ? c.text : typeof c === 'string' ? c : '').join("\n")
+                  : '';
+              return `${role}: ${content}`;
+            }).join("\n\n");
+            
+            // For structured output
+            if (needsStructuredOutput && schema) {
+              try {
+                const result = await generateObject({
+                  model: clients.openai(model.modelId),
+                  schema,
+                  prompt,
+                  ...aiOptions
+                });
+                
+                return {
+                  content: JSON.stringify(result),
+                  _request_id: `ai-sdk-${Date.now()}`
+                };
+              } catch (error) {
+                console.error("Error using Vercel AI SDK generateObject for OpenAI:", error);
+                // Continue to fallback
+              }
+            } 
+            // For regular completions
+            else {
+              try {
+                const { text } = await generateText({
+                  model: clients.openai(model.modelId),
+                  prompt,
+                  ...aiOptions
+                });
+                
+                return {
+                  content: text,
+                  _request_id: `ai-sdk-${Date.now()}`
+                };
+              } catch (error) {
+                console.error("Error using Vercel AI SDK generateText for OpenAI:", error);
+                // Continue to fallback
+              }
+            }
+          }
+        } catch (error) {
+          console.error("Error using Vercel AI SDK, falling back to native API:", error);
+          // Fall back to original implementation
+        }
+        
+        // Fallback to original implementation
         // Add developer role message for OpenAI models
         const developerMessage: ChatCompletionMessageParam = {
           role: "developer",
@@ -1017,49 +988,307 @@ export class AIModelManager {
       case "anthropic": {
         if (!this.anthropic) throw new Error("Anthropic client not initialized")
         
+        try {
+          // First attempt to use Vercel AI SDK
+          const apiKeys = {
+            openai: null,
+            anthropic: this.anthropic ? this.anthropic.apiKey : null,
+            google: null
+          };
+          
+          const clients = createAISDKClients(apiKeys);
+          
+          if (clients.anthropic) {
+            // Check if we need structured output
+            const lastMessage = messages[messages.length - 1];
+            const content = typeof lastMessage.content === 'string' ? lastMessage.content : lastMessage.content[0]?.text;
+            let needsStructuredOutput = false;
+            let schema = null;
+            
+            if (content) {
+              if (content.includes('Extract the coding problem')) {
+                schema = getSchemaForTask('extract');
+                needsStructuredOutput = true;
+              } else if (content.includes('Generate a solution')) {
+                schema = getSchemaForTask('solve');
+                needsStructuredOutput = true;
+              } else if (content.includes('Debug this code')) {
+                schema = getSchemaForTask('debug');
+                needsStructuredOutput = true;
+              }
+            }
+            
+            // Get appropriate system message based on task
+            let systemMessage = "";
+            if (isClaudeModel(model.modelId)) {
+              if (content) {
+                if (content.includes('Extract the coding problem')) {
+                  systemMessage = getClaudeSystemMessage('extract');
+                } else if (content.includes('Generate a solution')) {
+                  systemMessage = getClaudeSystemMessage('solve');
+                } else if (content.includes('Debug this code')) {
+                  systemMessage = getClaudeSystemMessage('debug');
+                }
+              }
+            }
+            
+            // Combine messages into a single prompt
+            const userMessages = messages.map(m => {
+              const content = typeof m.content === 'string' 
+                ? m.content 
+                : Array.isArray(m.content) 
+                  ? m.content.map(c => typeof c === 'object' && c.text ? c.text : typeof c === 'string' ? c : '').join("\n")
+                  : '';
+              return content;
+            }).join("\n\n");
+            
+            // For structured output with Anthropic
+            if (needsStructuredOutput && schema) {
+              try {
+                const result = await generateObject({
+                  model: clients.anthropic(model.modelId),
+                  // Vercel AI SDK uses a different approach to define schema for non-OpenAI models
+                  // It automatically handles schema transformation
+                  schema: schema,
+                  prompt: userMessages,
+                  system: systemMessage
+                });
+                
+                return {
+                  content: JSON.stringify(result),
+                  _request_id: `ai-sdk-${Date.now()}`
+                };
+              } catch (error) {
+                console.error("Error using Vercel AI SDK generateObject for Anthropic:", error);
+                // Continue to fallback
+              }
+            } 
+            // For regular completions
+            else {
+              try {
+                const { text } = await generateText({
+                  model: clients.anthropic(model.modelId),
+                  prompt: userMessages,
+                  system: systemMessage
+                });
+                
+                return {
+                  content: text,
+                  _request_id: `ai-sdk-${Date.now()}`
+                };
+              } catch (error) {
+                console.error("Error using Vercel AI SDK generateText for Anthropic:", error);
+                // Continue to fallback
+              }
+            }
+          }
+        } catch (error) {
+          console.error("Error using Vercel AI SDK for Anthropic, falling back to native API:", error);
+          // Fall back to original implementation
+        }
+        
+        // Fallback to original implementation
         // For Claude models, determine the task type and use appropriate system message
-        let systemMessage
+        let systemMessage;
         if (isClaudeModel(model.modelId)) {
-          const lastMessage = messages[messages.length - 1]
-          const lastContent = typeof lastMessage.content === 'string' ? lastMessage.content : lastMessage.content[0]?.text
+          const lastMessage = messages[messages.length - 1];
+          const lastContent = typeof lastMessage.content === 'string' ? lastMessage.content : lastMessage.content[0]?.text;
           
           if (lastContent.includes('Extract the coding problem')) {
-            systemMessage = getClaudeSystemMessage('extract')
+            systemMessage = getClaudeSystemMessage('extract');
           } else if (lastContent.includes('Generate a solution')) {
-            systemMessage = getClaudeSystemMessage('solve')
+            systemMessage = getClaudeSystemMessage('solve');
           } else if (lastContent.includes('Debug this code')) {
-            systemMessage = getClaudeSystemMessage('debug')
+            systemMessage = getClaudeSystemMessage('debug');
           }
         }
 
         return this.callAnthropicApi(model, messages, { 
           signal: options.signal, 
           systemPrompt: systemMessage 
-        })
+        });
       }
 
       case "google": {
-        return this.callGoogleApi(modelId, messages, options)
+        try {
+          // First attempt to use Vercel AI SDK
+          const apiKeys = {
+            openai: null,
+            anthropic: null,
+            google: this.google ? (this.google as any).apiKey : null
+          };
+          
+          const clients = createAISDKClients(apiKeys);
+          
+          if (clients.google) {
+            // Check if we need structured output
+            const lastMessage = messages[messages.length - 1];
+            const content = typeof lastMessage.content === 'string' ? lastMessage.content : lastMessage.content[0]?.text;
+            let needsStructuredOutput = false;
+            let schema = null;
+            
+            if (content) {
+              if (content.includes('Extract the coding problem')) {
+                schema = getGeminiSchemaForTask('extract');
+                needsStructuredOutput = true;
+              } else if (content.includes('Generate a solution')) {
+                schema = getGeminiSchemaForTask('solve');
+                needsStructuredOutput = true;
+              } else if (content.includes('Debug this code')) {
+                schema = getGeminiSchemaForTask('debug');
+                needsStructuredOutput = true;
+              }
+            }
+            
+            // Combine messages into a single prompt
+            const prompt = messages.map(m => {
+              const content = typeof m.content === 'string' 
+                ? m.content 
+                : Array.isArray(m.content) 
+                  ? m.content.map(c => typeof c === 'object' && c.text ? c.text : typeof c === 'string' ? c : '').join("\n")
+                  : '';
+              return content;
+            }).join("\n\n");
+            
+            // For structured output
+            if (needsStructuredOutput && schema) {
+              try {
+                // For Google models, we need to convert schema format
+                const result = await generateObject({
+                  model: clients.google(model.modelId),
+                  schema: schema,
+                  prompt
+                });
+                
+                return {
+                  content: JSON.stringify(result),
+                  _request_id: `ai-sdk-${Date.now()}`
+                };
+              } catch (error) {
+                console.error("Error using Vercel AI SDK generateObject for Google:", error);
+                // Continue to fallback
+              }
+            } 
+            // For regular completions
+            else {
+              try {
+                const { text } = await generateText({
+                  model: clients.google(model.modelId),
+                  prompt
+                });
+                
+                return {
+                  content: text,
+                  _request_id: `ai-sdk-${Date.now()}`
+                };
+              } catch (error) {
+                console.error("Error using Vercel AI SDK generateText for Google:", error);
+                // Continue to fallback
+              }
+            }
+          }
+        } catch (error) {
+          console.error("Error using Vercel AI SDK for Google, falling back to native API:", error);
+          // Fall back to original implementation
+        }
+        
+        // Fallback to original implementation
+        return this.callGoogleApi(modelId, messages, options);
       }
 
       case "deepseek": {
         return this.callDeepseekApi(model, messages, options)
       }
 
-      case "xai": {
-        return this.callXaiApi(model, messages, options)
-      }
-
       case "meta": {
         return this.callMetaApi(model, messages, options)
       }
 
-      case "alibaba": {
-        return this.callAlibabaApi(model, messages, options)
-      }
-
       default:
         throw new Error(`Unknown provider: ${model.provider}`)
+    }
+  }
+
+  /**
+   * Verifies that the Vercel AI SDK is working correctly
+   * @returns Promise that resolves with the testing results
+   */
+  public async verifyAISDK(): Promise<{ isSDKWorking: boolean; results: Record<string, boolean> }> {
+    if (!this.initialized) {
+      await this.initializeClients();
+    }
+    
+    const results: Record<string, boolean> = {
+      openai: false,
+      anthropic: false,
+      google: false
+    };
+    
+    try {
+      // Get API keys
+      let apiKeys: any;
+      
+      if (this.isMainProcess) {
+        // In main process, use store directly
+        apiKeys = this.store.get('apiKeys');
+      } else {
+        // In renderer process, use electronAPI
+        apiKeys = await window.electronAPI.getApiKeys();
+      }
+      
+      // Initialize clients
+      const clients = createAISDKClients(apiKeys);
+      
+      // Test each provider
+      if (clients.openai) {
+        try {
+          // Simple test for OpenAI
+          const { text } = await generateText({
+            model: clients.openai('gpt-3.5-turbo'),
+            prompt: 'Say hello'
+          });
+          
+          results.openai = !!text;
+        } catch (error) {
+          console.error('OpenAI AI SDK test failed:', error);
+        }
+      }
+      
+      if (clients.anthropic) {
+        try {
+          // Simple test for Anthropic
+          const { text } = await generateText({
+            model: clients.anthropic('claude-3-haiku-20240307'),
+            prompt: 'Say hello'
+          });
+          
+          results.anthropic = !!text;
+        } catch (error) {
+          console.error('Anthropic AI SDK test failed:', error);
+        }
+      }
+      
+      if (clients.google) {
+        try {
+          // Simple test for Google
+          const { text } = await generateText({
+            model: clients.google('gemini-1.5-flash'),
+            prompt: 'Say hello'
+          });
+          
+          results.google = !!text;
+        } catch (error) {
+          console.error('Google AI SDK test failed:', error);
+        }
+      }
+      
+      const isSDKWorking = Object.values(results).some(value => value);
+      console.log('AI SDK verification results:', { isSDKWorking, results });
+      
+      return { isSDKWorking, results };
+    } catch (error) {
+      console.error('AI SDK verification failed:', error);
+      return { isSDKWorking: false, results };
     }
   }
 }
@@ -1071,3 +1300,8 @@ export function createAIManager(store?: any) {
 
 // For backwards compatibility in renderer process
 export const aiManager = typeof window !== 'undefined' ? new AIModelManager() : null
+
+// Utility functions to get models based on criteria
+export function getSTTModels(): AIModel[] {
+  return allModels.filter(model => model.isSTTModel);
+}

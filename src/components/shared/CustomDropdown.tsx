@@ -114,7 +114,11 @@ export const CustomDropdown: React.FC<CustomDropdownProps> = ({
   // Close dropdown when clicking outside
   useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {
-      if (dropdownRef.current && !dropdownRef.current.contains(event.target as Node)) {
+      // If the click target is not inside the dropdown or dropdown options
+      if (isOpen && 
+          dropdownRef.current && 
+          !dropdownRef.current.contains(event.target as Node) &&
+          !(optionsRef.current && optionsRef.current.contains(event.target as Node))) {
         setIsOpen(false);
       }
     };
@@ -123,12 +127,18 @@ export const CustomDropdown: React.FC<CustomDropdownProps> = ({
     return () => {
       document.removeEventListener("mousedown", handleClickOutside);
     };
-  }, []);
+  }, [isOpen]);
   
   // Handle dropdown toggle
   const toggleDropdown = () => {
     setIsOpen(!isOpen);
+    // Keep focus on dropdown element
     if (!isOpen) {
+      requestAnimationFrame(() => {
+        if (dropdownRef.current) {
+          dropdownRef.current.focus();
+        }
+      });
       // Find and highlight the current selected option when opening
       const index = allOptions.findIndex(option => option.value === value);
       setHighlightedIndex(index);
@@ -136,7 +146,13 @@ export const CustomDropdown: React.FC<CustomDropdownProps> = ({
   };
   
   // Handle option selection
-  const handleSelect = (option: Option) => {
+  const handleSelect = (option: Option, event?: React.MouseEvent) => {
+    // Prevent event from propagating to document
+    if (event) {
+      event.stopPropagation();
+      event.preventDefault();
+    }
+    
     onChange(option.value);
     setIsOpen(false);
   };
@@ -239,7 +255,7 @@ export const CustomDropdown: React.FC<CustomDropdownProps> = ({
         onClick={toggleDropdown}
         aria-label={selectedOption ? `Selected: ${selectedOption.label}` : placeholder}
       >
-        <span className="truncate select-none cursor-default">
+        <span className="truncate select-none">
           {selectedOption ? selectedOption.label : placeholder}
         </span>
         <svg 
@@ -264,6 +280,7 @@ export const CustomDropdown: React.FC<CustomDropdownProps> = ({
             maxHeight: '600px', // Set a 600px max height limit
           }}
           role="listbox"
+          onMouseDown={(e) => e.stopPropagation()}
         >
           {options.map((group, groupIndex) => (
             <div key={group.label} className="mb-1 last:mb-0">
@@ -275,7 +292,7 @@ export const CustomDropdown: React.FC<CustomDropdownProps> = ({
                 return (
                   <div
                     key={option.value}
-                    onClick={() => handleSelect(option)}
+                    onClick={(e) => handleSelect(option, e)}
                     onMouseEnter={() => setHighlightedIndex(totalIndex)}
                     className={`px-3 py-1.5 text-[11px] cursor-default transition-colors select-none ${
                       option.value === value 

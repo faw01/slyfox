@@ -190,14 +190,43 @@ export function initializeIpcHandlers(deps: IIpcHandlerDeps): void {
     }
   })
 
-  // Window management handlers
+  // Toggle main window
   ipcMain.handle("toggle-window", () => {
     try {
       deps.toggleMainWindow()
       return { success: true }
     } catch (error) {
-      console.error("Error toggling window:", error)
-      return { error: "Failed to toggle window" }
+      return { success: false, error: "Failed to toggle window" }
+    }
+  })
+
+  // Toggle STTPanel (teleprompter)
+  ipcMain.handle("toggle-stt-panel", () => {
+    try {
+      const mainWindow = deps.getMainWindow()
+      if (mainWindow) {
+        mainWindow.webContents.send("toggle-stt-panel")
+        return { success: true }
+      }
+      return { success: false, error: "Main window not found" }
+    } catch (error) {
+      console.error("Error toggling STT panel:", error)
+      return { success: false, error: "Failed to toggle STT panel" }
+    }
+  })
+
+  // Toggle Chat
+  ipcMain.handle("toggle-chat", () => {
+    try {
+      const mainWindow = deps.getMainWindow()
+      if (mainWindow) {
+        mainWindow.webContents.send("toggle-chat")
+        return { success: true }
+      }
+      return { success: false, error: "Main window not found" }
+    } catch (error) {
+      console.error("Error toggling chat:", error)
+      return { success: false, error: "Failed to toggle chat" }
     }
   })
 
@@ -249,7 +278,7 @@ export function initializeIpcHandlers(deps: IIpcHandlerDeps): void {
     }
   })
 
-  // Window movement handlers
+  // Move window handlers
   ipcMain.handle("trigger-move-left", () => {
     try {
       deps.moveWindowLeft()
@@ -334,7 +363,8 @@ export function initializeIpcHandlers(deps: IIpcHandlerDeps): void {
     return store.get('apiKeys')
   })
 
-  type ApiProvider = 'openai' | 'anthropic' | 'google' | 'deepseek' | 'xai' | 'meta' | 'alibaba'
+  // Define API provider type
+  type ApiProvider = 'openai' | 'anthropic' | 'google' | 'deepseek' | 'meta' | 'deepgram'
 
   ipcMain.handle('set-api-key', (_event, { provider, key }: { provider: ApiProvider; key: string }) => {
     const apiKeys = store.get('apiKeys')

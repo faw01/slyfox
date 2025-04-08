@@ -6,6 +6,7 @@ import { ModelSelector } from "../shared/ModelSelector"
 import { Settings } from "../shared/Settings"
 import { COMMAND_KEY } from '../../utils/platform'
 import STTPanel from "../shared/STTPanel"
+import ChatPanel from "../shared/ChatPanel"
 
 interface QueueCommandsProps {
   onTooltipVisibilityChange: (visible: boolean, height: number) => void
@@ -31,6 +32,7 @@ const QueueCommands: React.FC<QueueCommandsProps> = ({
   const [electronVersion, setElectronVersion] = useState("")
   const [isSettingsLocked, setIsSettingsLocked] = useState(true)
   const [isSTTPanelOpen, setIsSTTPanelOpen] = useState(false)
+  const [isChatOpen, setIsChatOpen] = useState(false)
   const tooltipRef = useRef<HTMLDivElement>(null)
   const { showToast } = useToast()
 
@@ -58,12 +60,45 @@ const QueueCommands: React.FC<QueueCommandsProps> = ({
     onTooltipVisibilityChange(isTooltipVisible, tooltipHeight)
   }, [isTooltipVisible])
 
-  // Close settings tooltip when STT panel opens
+  // Listen for toggle-stt-panel event from main process
   useEffect(() => {
-    if (isSTTPanelOpen && isTooltipVisible) {
+    const cleanup = window.electronAPI.onToggleSTTPanel(() => {
+      setIsSTTPanelOpen(prev => !prev)
+    })
+    
+    return () => {
+      cleanup()
+    }
+  }, [])
+
+  // Listen for toggle-chat event from main process when keyboard shortcut is used
+  useEffect(() => {
+    const handleToggleChat = () => {
+      setIsChatOpen(prev => !prev)
+    }
+    
+    // Once onToggleChat is properly implemented in ElectronAPI, uncomment this
+    // const cleanup = window.electronAPI.onToggleChat(handleToggleChat)
+    // return () => { cleanup() }
+    
+    // For now, implement a temporary keyboard shortcut handler
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if ((e.metaKey || e.ctrlKey) && e.key === 'd') {
+        handleToggleChat()
+      }
+    }
+    
+    window.addEventListener('keydown', handleKeyDown)
+    return () => {
+      window.removeEventListener('keydown', handleKeyDown)
+    }
+  }, [])
+
+  useEffect(() => {
+    if ((isSTTPanelOpen || isChatOpen) && isTooltipVisible) {
       setIsTooltipVisible(false)
     }
-  }, [isSTTPanelOpen])
+  }, [isSTTPanelOpen, isChatOpen])
 
   const handleToggleSettings = () => {
     setIsTooltipVisible(!isTooltipVisible)
@@ -156,9 +191,6 @@ const QueueCommands: React.FC<QueueCommandsProps> = ({
             </div>
           )}
 
-          {/* Separator */}
-          <div className="mx-2 h-4 w-px bg-white/20" />
-
           {/* Teleprompter */}
           <div className="relative inline-block">
             <div 
@@ -188,8 +220,35 @@ const QueueCommands: React.FC<QueueCommandsProps> = ({
             )}
           </div>
 
-          {/* Separator */}
-          <div className="mx-2 h-4 w-px bg-white/20" />
+          {/* Chat */}
+          <div className="relative inline-block">
+            <div className="flex items-center gap-2 rounded px-2 py-1.5 hover:bg-white/10 transition-colors cursor-default"
+              onClick={() => {
+                // Add chat functionality here
+                setIsChatOpen(!isChatOpen)
+              }}
+            >
+              <span className="text-[11px] leading-none truncate select-none cursor-default">
+                Chat
+              </span>
+              <div className="flex gap-1">
+                <button className="bg-white/10 rounded-md px-1.5 py-1 text-[11px] leading-none text-white/70 select-none cursor-default">
+                  {COMMAND_KEY}
+                </button>
+                <button className="bg-white/10 rounded-md px-1.5 py-1 text-[11px] leading-none text-white/70 select-none cursor-default">
+                  D
+                </button>
+              </div>
+            </div>
+            
+            {/* Chat Panel */}
+            {isChatOpen && (
+              <ChatPanel 
+                isOpen={isChatOpen}
+                onClose={() => setIsChatOpen(false)}
+              />
+            )}
+          </div>
 
           {/* Settings with Tooltip */}
           <div className="relative inline-block">
@@ -247,7 +306,7 @@ const QueueCommands: React.FC<QueueCommandsProps> = ({
             {isTooltipVisible && (
               <div
                 ref={tooltipRef}
-                className="absolute top-full left-0 mt-2 w-80 transform -translate-x-[calc(50%-12px)]"
+                className="absolute top-full left-0 mt-[20px] w-80 transform -translate-x-[calc(50%-12px)]"
                 style={{ zIndex: 100 }}
               >
                 {/* Add transparent bridge */}

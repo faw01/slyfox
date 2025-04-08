@@ -6,7 +6,7 @@ import { checkOllamaHealth, getLocalModels } from "../../lib/ollama-client"
 // Define window global variables
 declare global {
   interface Window {
-    __MODEL__: string;
+    __CHAT_MODEL__: string;
     __LOCAL_MODELS__?: any[];
   }
 }
@@ -17,9 +17,9 @@ interface Option {
   title?: string;
 }
 
-interface ModelSelectorProps {
-  currentModel: string;
-  setModel: (model: string) => void;
+interface ChatModelSelectorProps {
+  currentChatModel: string;
+  setChatModel: (model: string) => void;
   showLocalModels?: boolean;
 }
 
@@ -30,29 +30,29 @@ const providersWithLocalModels = ["openai", "anthropic", "google"];
 const RECOMMENDED_MODELS = ["gpt-4o", "o3-mini-high", "gemini-2.5-pro-preview", "gemini-2.0-flash", "claude-3-7-sonnet-thinking-high"];
 
 // Debug log to check available models
-console.log("===== MODEL SELECTOR DEBUGGING =====");
-console.log("Available models in ModelSelector:", models.length);
-console.log("Google models in ModelSelector:", models.filter(m => m.provider === "google").map(m => m.id));
+console.log("===== CHAT MODEL SELECTOR DEBUGGING =====");
+console.log("Available models in ChatModelSelector:", models.length);
+console.log("Google models in ChatModelSelector:", models.filter(m => m.provider === "google").map(m => m.id));
 console.log("Recommended models:", RECOMMENDED_MODELS);
-console.log("===== END MODEL SELECTOR DEBUGGING =====");
+console.log("===== END CHAT MODEL SELECTOR DEBUGGING =====");
 
-// Modify provider display name
+// Modify provider display name for readability
 const getProviderDisplayName = (provider: string) => {
   let displayName = provider.charAt(0).toUpperCase() + provider.slice(1);
   if (provider === "openai") displayName = "OpenAI"
   else if (provider === "anthropic") displayName = "Anthropic"
-  else if (provider === "meta") displayName = "Meta"
   else if (provider === "google") displayName = "Google"
   else if (provider === "deepseek") displayName = "DeepSeek"
+  else if (provider === "meta") displayName = "Meta"
   else if (provider === "deepgram") displayName = "Deepgram"
   else if (provider === "recommended") displayName = "Recommended Models"
   else if (provider === "local") displayName = "Local Models"
   return displayName;
 }
 
-export const ModelSelector: React.FC<ModelSelectorProps> = ({
-  currentModel,
-  setModel,
+export const ChatModelSelector: React.FC<ChatModelSelectorProps> = ({
+  currentChatModel,
+  setChatModel,
   showLocalModels = true
 }) => {
   const [isOllamaAvailable, setIsOllamaAvailable] = useState(false);
@@ -60,15 +60,15 @@ export const ModelSelector: React.FC<ModelSelectorProps> = ({
 
   // Debug log inside component
   useEffect(() => {
-    console.log("ModelSelector rendered with models:", {
+    console.log("ChatModelSelector rendered with models:", {
       totalModels: models.length,
       googleModels: models.filter(m => m.provider === "google").length,
       googleModelIds: models.filter(m => m.provider === "google").map(m => m.id),
-      currentModel,
+      currentChatModel,
       localModelsState: localModels?.length,
       isOllamaAvailableState: isOllamaAvailable
     });
-  }, [currentModel, localModels, isOllamaAvailable]);
+  }, [currentChatModel, localModels, isOllamaAvailable]);
 
   // Check Ollama availability and get local models
   useEffect(() => {
@@ -96,21 +96,17 @@ export const ModelSelector: React.FC<ModelSelectorProps> = ({
     checkOllama();
   }, []);
 
-  // Force set the model to openai/gpt-4o if it's not already set
+  // Set default chat model if not set
   useEffect(() => {
-    if (!window.__MODEL__) {
-      window.__MODEL__ = "gpt-4o"
-      setModel("gpt-4o")
-      // Update electron preference if available
-      window.electronAPI?.setModel("gpt-4o").catch(console.error);
+    if (!window.__CHAT_MODEL__) {
+      window.__CHAT_MODEL__ = "gpt-4o"
+      setChatModel("gpt-4o")
     }
   }, [])
 
   const handleModelChange = (newModel: string) => {
-    window.__MODEL__ = newModel;
-    setModel(newModel);
-    // Update electron preference if available
-    window.electronAPI?.setModel(newModel).catch(console.error);
+    window.__CHAT_MODEL__ = newModel;
+    setChatModel(newModel);
     
     // Check if it's a local model
     const isLocalModel = localModels.some(m => m.id === newModel || m.name === newModel);
@@ -124,9 +120,9 @@ export const ModelSelector: React.FC<ModelSelectorProps> = ({
     model.provider === "google" // Include all Google models regardless of vision flag
   );
 
-  const modelOptions = useMemo(() => {
+  const chatModelOptions = useMemo(() => {
     // Additional debug logging for local models
-    console.log("modelOptions calculation with:", {
+    console.log("chatModelOptions calculation with:", {
       localModelsAvailable: localModels?.length || 0,
       ollamaAvailable: isOllamaAvailable,
       showLocalModels: showLocalModels
@@ -186,20 +182,20 @@ export const ModelSelector: React.FC<ModelSelectorProps> = ({
     }
     
     // Make sure the current model is included in the options
-    if (currentModel) {
+    if (currentChatModel) {
       // Check if it's already in any group
       const isIncluded = Object.values(providerGroups)
         .flat()
-        .some(option => option.value === currentModel);
+        .some(option => option.value === currentChatModel);
         
       if (!isIncluded) {
         // First check if it's a local model
-        const localModel = localModels.find(m => m.name === currentModel);
+        const localModel = localModels.find(m => m.name === currentChatModel);
         if (localModel) {
           if (!providerGroups["local"]) {
             providerGroups["local"] = [];
           }
-          if (!providerGroups["local"].some(o => o.value === currentModel)) {
+          if (!providerGroups["local"].some(o => o.value === currentChatModel)) {
             providerGroups["local"].push({
               value: localModel.name,
               label: localModel.name,
@@ -208,7 +204,7 @@ export const ModelSelector: React.FC<ModelSelectorProps> = ({
           }
         } else {
           // Otherwise check the regular models
-          const currentModelObj = models.find(m => m.id === currentModel);
+          const currentModelObj = models.find(m => m.id === currentChatModel);
           if (currentModelObj) {
             const provider = currentModelObj.provider;
             if (!providerGroups[provider]) {
@@ -225,7 +221,7 @@ export const ModelSelector: React.FC<ModelSelectorProps> = ({
     }
 
     // Debug what's actually being used in render
-    console.log("ModelSelector rendering with:", {
+    console.log("ChatModelSelector rendering with:", {
       recommendedModelsForDisplay: nonVisionModels.filter(model => RECOMMENDED_MODELS.includes(model.id)).map(m => m.id),
       otherModelsForDisplay: nonVisionModels.filter(model => !RECOMMENDED_MODELS.includes(model.id)).map(m => m.id),
       googleModelsInDisplay: nonVisionModels.filter(m => m.provider === "google").map(m => ({id: m.id, isVision: m.isVisionModel})),
@@ -245,12 +241,12 @@ export const ModelSelector: React.FC<ModelSelectorProps> = ({
         options: options.sort((a, b) => a.label.localeCompare(b.label))
       }
     }).filter(group => group.options.length > 0)
-  }, [models, localModels, showLocalModels, currentModel, nonVisionModels, isOllamaAvailable])
+  }, [models, localModels, showLocalModels, currentChatModel, nonVisionModels, isOllamaAvailable])
 
   return (
     <div className="mb-3 px-2 space-y-1">
       <div className="flex items-center justify-between">
-        <span className="text-[11px] leading-none text-white/90">Model</span>
+        <span className="text-[11px] leading-none text-white/90">Chat Model</span>
         <div className="flex items-center gap-2">
           {isOllamaAvailable && localModels.length > 0 && (
             <div 
@@ -261,11 +257,11 @@ export const ModelSelector: React.FC<ModelSelectorProps> = ({
             </div>
           )}
           <CustomDropdown
-            value={currentModel}
+            value={currentChatModel}
             onChange={handleModelChange}
-            options={modelOptions}
+            options={chatModelOptions}
             className="min-w-[160px]"
-            placeholder="Select a model"
+            placeholder="Select a chat model"
           />
         </div>
       </div>

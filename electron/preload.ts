@@ -36,6 +36,8 @@ interface ElectronAPI {
   onDebugError: (callback: (error: string) => void) => () => void
   openExternal: (url: string) => void
   toggleMainWindow: () => Promise<{ success: boolean; error?: string }>
+  toggleSTTPanel: () => Promise<{ success: boolean; error?: string }>
+  toggleChat: () => Promise<{ success: boolean; error?: string }>
   triggerScreenshot: () => Promise<{ success: boolean; error?: string }>
   triggerProcessScreenshots: () => Promise<{ success: boolean; error?: string }>
   triggerReset: () => Promise<{ success: boolean; error?: string }>
@@ -89,6 +91,8 @@ interface ElectronAPI {
   runWhisperCLI: (filePath: string, modelName: string) => Promise<void>
   cleanupTempFile: (filePath: string) => Promise<void>
   generateTeleprompterResponse: (transcript: string) => Promise<void>
+  onToggleSTTPanel: (callback: () => void) => () => void
+  onToggleChat: (callback: () => void) => () => void
 }
 
 export const PROCESSING_EVENTS = {
@@ -132,7 +136,29 @@ const electronAPI = {
       return result
     } catch (error) {
       console.error("Error in toggleMainWindow:", error)
-      throw error
+      return { success: false, error: String(error) }
+    }
+  },
+  toggleSTTPanel: async () => {
+    console.log("toggleSTTPanel called from preload")
+    try {
+      const result = await ipcRenderer.invoke("toggle-stt-panel")
+      console.log("toggle-stt-panel result:", result)
+      return result
+    } catch (error) {
+      console.error("Error in toggleSTTPanel:", error)
+      return { success: false, error: String(error) }
+    }
+  },
+  toggleChat: async () => {
+    console.log("toggleChat called from preload")
+    try {
+      const result = await ipcRenderer.invoke("toggle-chat")
+      console.log("toggle-chat result:", result)
+      return result
+    } catch (error) {
+      console.error("Error in toggleChat:", error)
+      return { success: false, error: String(error) }
     }
   },
   // Event listeners
@@ -231,6 +257,13 @@ const electronAPI = {
     ipcRenderer.on(PROCESSING_EVENTS.UNAUTHORIZED, subscription)
     return () => {
       ipcRenderer.removeListener(PROCESSING_EVENTS.UNAUTHORIZED, subscription)
+    }
+  },
+  onToggleSTTPanel: (callback: () => void) => {
+    const subscription = () => callback()
+    ipcRenderer.on("toggle-stt-panel", subscription)
+    return () => {
+      ipcRenderer.removeListener("toggle-stt-panel", subscription)
     }
   },
   openExternal: (url: string) => shell.openExternal(url),
@@ -353,7 +386,14 @@ const electronAPI = {
   cleanupTempFile: (filePath: string) => 
     ipcRenderer.invoke('cleanup-temp-file', filePath),
   generateTeleprompterResponse: (transcript: string) => 
-    ipcRenderer.invoke('generate-teleprompter-response', transcript)
+    ipcRenderer.invoke('generate-teleprompter-response', transcript),
+  onToggleChat: (callback: () => void) => {
+    const subscription = () => callback()
+    ipcRenderer.on("toggle-chat", subscription)
+    return () => {
+      ipcRenderer.removeListener("toggle-chat", subscription)
+    }
+  }
 } as ElectronAPI
 
 // Before exposing the API

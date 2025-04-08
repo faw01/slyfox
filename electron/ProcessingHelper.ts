@@ -7,6 +7,10 @@ import { app } from "electron"
 import { BrowserWindow } from "electron"
 import { createAIManager } from "../src/lib/models"
 import { store } from "./store"
+import { 
+  setIsExtractingProblem, 
+  setIsGeneratingSolution
+} from "./main"
 
 // Import centralized configuration
 import { createProblemExtractionMessages } from "../src/lib/config/prompts/extract"
@@ -300,6 +304,9 @@ export class ProcessingHelper {
 
         // First API call - extract problem info
         try {
+          // Set the extraction state to true
+          setIsExtractingProblem(true)
+          
           // Use centralized prompt configuration instead of hardcoded messages
           const messages = createProblemExtractionMessages(imageDataList)
 
@@ -313,6 +320,9 @@ export class ProcessingHelper {
 
           // Store problem info in AppState
           this.deps.setProblemInfo(problemInfo)
+          
+          // Extraction completed
+          setIsExtractingProblem(false)
 
           // Send first success event
           if (mainWindow) {
@@ -322,7 +332,14 @@ export class ProcessingHelper {
             )
 
             // Generate solutions after successful extraction
+            // Set the solution generation state to true
+            setIsGeneratingSolution(true)
+            
             const solutionsResult = await this.generateSolutionsHelper(signal)
+            
+            // Solution generation completed
+            setIsGeneratingSolution(false)
+            
             if (solutionsResult.success) {
               // Clear any existing extra screenshots before transitioning to solutions view
               this.screenshotHelper.clearExtraScreenshotQueue()
@@ -338,6 +355,10 @@ export class ProcessingHelper {
             }
           }
         } catch (error: any) {
+          // Reset the state flags on error
+          setIsExtractingProblem(false)
+          setIsGeneratingSolution(false)
+          
           // If the request was cancelled, don't retry
           if (axios.isCancel(error)) {
             return {
@@ -352,6 +373,10 @@ export class ProcessingHelper {
           throw new Error(error.message || "Server error. Please try again.")
         }
       } catch (error: any) {
+        // Reset the state flags on error
+        setIsExtractingProblem(false)
+        setIsGeneratingSolution(false)
+        
         // Log the full error for debugging
         console.error("Processing error details:", error)
 
@@ -366,6 +391,10 @@ export class ProcessingHelper {
     }
 
     // If we get here, all retries failed
+    // Ensure the state flags are reset
+    setIsExtractingProblem(false)
+    setIsGeneratingSolution(false)
+    
     return {
       success: false,
       error: "Failed to process after multiple attempts. Please try again."
@@ -395,6 +424,9 @@ export class ProcessingHelper {
       return { success: true, data: result }
     } catch (error: any) {
       const mainWindow = this.deps.getMainWindow()
+      
+      // Reset the solution generation state on error
+      setIsGeneratingSolution(false)
 
       // Handle timeout errors
       if (error.code === "ECONNABORTED" || error.response?.status === 504) {
@@ -467,5 +499,9 @@ export class ProcessingHelper {
       this.currentExtraProcessingAbortController.abort()
       this.currentExtraProcessingAbortController = null
     }
+    
+    // Reset extraction and generation states when canceling requests
+    setIsExtractingProblem(false)
+    setIsGeneratingSolution(false)
   }
 }

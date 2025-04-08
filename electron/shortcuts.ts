@@ -26,6 +26,15 @@ export class ShortcutsHelper {
       }
     })
 
+    // Register CMD+X for teleprompter manual recording toggle
+    globalShortcut.register("CommandOrControl+X", () => {
+      console.log("Command/Ctrl + X pressed. Toggling manual recording in teleprompter.")
+      const mainWindow = this.deps.getMainWindow()
+      if (mainWindow) {
+        mainWindow.webContents.send("toggle-manual-recording")
+      }
+    })
+
     globalShortcut.register("CommandOrControl+Enter", async () => {
       await this.deps.processingHelper?.processScreenshots()
     })
@@ -78,6 +87,22 @@ export class ShortcutsHelper {
     globalShortcut.register("CommandOrControl+B", () => {
       console.log("Command/Ctrl + B pressed. Toggling main window.")
       this.deps.toggleMainWindow()
+    })
+
+    globalShortcut.register("CommandOrControl+T", () => {
+      console.log("Command/Ctrl + T pressed. Toggling STT Panel (teleprompter).")
+      const mainWindow = this.deps.getMainWindow()
+      if (mainWindow) {
+        mainWindow.webContents.send("toggle-stt-panel")
+      }
+    })
+
+    globalShortcut.register("CommandOrControl+D", () => {
+      console.log("Command/Ctrl + D pressed. Toggling Chat.")
+      const mainWindow = this.deps.getMainWindow()
+      if (mainWindow) {
+        mainWindow.webContents.send("toggle-chat")
+      }
     })
 
     // Unregister shortcuts when quitting
