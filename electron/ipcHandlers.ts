@@ -3,7 +3,7 @@
 import { ipcMain, shell, app, desktopCapturer } from "electron"
 import { randomBytes } from "crypto"
 import { createClient } from '@supabase/supabase-js'
-import { store } from "./store"
+import { store, type StoreSchema } from "./store"
 import { IIpcHandlerDeps } from "./main"
 import path from 'path';
 import fs from 'fs';
@@ -800,33 +800,73 @@ export function initializeIpcHandlers(deps: IIpcHandlerDeps): void {
     }
   });
 
-  // Teleprompter handler
-  ipcMain.handle("generate-teleprompter-response", async (_, transcript: string) => {
-    console.log("Received request to generate teleprompter response. Transcript length:", transcript.length);
-    console.log("Teleprompter helper available:", !!deps.teleprompterHelper);
+  // Teleprompter response handler
+  ipcMain.handle('generate-teleprompter-response', async (_, transcript: string) => {
+    if (!deps.teleprompterHelper) {
+      console.error('Teleprompter helper not initialized');
+      return { success: false, error: 'Teleprompter helper not initialized' };
+    }
     
     try {
-      if (!deps.teleprompterHelper) {
-        console.error("Teleprompter helper not initialized");
-        return { 
-          success: false, 
-          error: "Teleprompter helper not initialized" 
-        }
-      }
-      
-      // Log more details about the teleprompterHelper state
-      console.log("Checking teleprompterHelper internal state...");
-      
-      console.log("Calling teleprompterHelper.generateResponse() with transcript:", transcript.substring(0, 50) + "...");
-      const result = await deps.teleprompterHelper.generateResponse(transcript);
-      console.log("Teleprompter response generated successfully:", result.success, "Data length:", result.data ? result.data.length : 0);
-      return result;
+      return await deps.teleprompterHelper.generateResponse(transcript);
     } catch (error) {
-      console.error("Error generating teleprompter response:", error);
-      return { 
-        success: false, 
-        error: error instanceof Error ? error.message : "Failed to generate response" 
+      console.error('Error generating teleprompter response:', error);
+      return { success: false, error: 'Failed to generate response' };
+    }
+  });
+  
+  // Chat response handler
+  ipcMain.handle('generate-chat-response', async (_, options: { 
+    model: string; 
+    message: string;
+    history?: Array<{role: string; content: string}>
+  }) => {
+    if (!deps.chatHelper) {
+      console.error('Chat helper not initialized');
+      return { success: false, error: 'Chat helper not initialized' };
+    }
+    
+    try {
+      return await deps.chatHelper.generateResponse(options);
+    } catch (error) {
+      console.error('Error generating chat response:', error);
+      return { success: false, error: 'Failed to generate response' };
+    }
+  });
+
+  // Get hotkeys
+  ipcMain.handle("get-hotkeys", () => {
+    try {
+      return store.get('hotkeys')
+    } catch (error) {
+      console.error("Error getting hotkeys:", error)
+      return null
+    }
+  })
+
+  // Set a specific hotkey
+  ipcMain.handle("set-hotkey", (_, data: { key: keyof StoreSchema['hotkeys']; value: string }) => {
+    try {
+      const { key, value } = data
+      const hotkeys = store.get('hotkeys')
+      hotkeys[key] = value
+      store.set('hotkeys', hotkeys)
+      
+      // Signal main process to update shortcuts
+      if (typeof deps.updateHotkeys === 'function') {
+        deps.updateHotkeys()
       }
+      
+      // Notify all renderer processes that hotkeys have changed
+      const mainWindow = deps.getMainWindow()
+      if (mainWindow) {
+        mainWindow.webContents.send("hotkeys-changed")
+      }
+      
+      return { success: true }
+    } catch (error) {
+      console.error("Error setting hotkey:", error)
+      return { success: false, error: "Failed to set hotkey" }
     }
   })
 }

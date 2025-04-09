@@ -3,6 +3,11 @@ import { Button } from '../ui/button'
 import { Card, CardContent } from '../ui/card'
 import { COMMAND_KEY } from '../../utils/platform'
 
+// Helper function to determine if the model is a Gemini model
+const isGeminiModel = (modelId: string): boolean => {
+  return modelId.toLowerCase().includes('gemini');
+};
+
 interface ChatPanelProps {
   isOpen: boolean
   onClose: () => void
@@ -14,9 +19,11 @@ const ChatPanel: React.FC<ChatPanelProps> = ({
 }) => {
   // Chat messages state with localStorage persistence
   const [chatMessages, setChatMessages] = useState<Array<{
+    id: string;
     role: 'user' | 'assistant';
     content: string;
     timestamp: string;
+    sources?: Array<{title?: string; url: string}>;
   }>>(() => {
     // Try to load saved messages from localStorage
     try {
@@ -29,6 +36,12 @@ const ChatPanel: React.FC<ChatPanelProps> = ({
   
   // Input state
   const [inputText, setInputText] = useState('');
+  // Search toggle state
+  const [useSearch, setUseSearch] = useState(false);
+  
+  // Get the current model to check if it's a Gemini model
+  const currentModel = window.__CHAT_MODEL__ || "";
+  const isGeminiModelActive = isGeminiModel(currentModel);
   
   // Save chat messages to localStorage whenever they change
   useEffect(() => {
@@ -36,15 +49,27 @@ const ChatPanel: React.FC<ChatPanelProps> = ({
   }, [chatMessages]);
   
   // Function to add a new message to the chat
-  const addChatMessage = (role: 'user' | 'assistant', content: string) => {
+  const addChatMessage = (role: 'user' | 'assistant', content: string, sources?: Array<{title?: string; url: string}>) => {
     const now = new Date();
     const timestamp = `${now.getHours().toString().padStart(2, '0')}:${now.getMinutes().toString().padStart(2, '0')}:${now.getSeconds().toString().padStart(2, '0')}`;
     
-    setChatMessages(prev => [...prev, {
+    const newMessage = {
+      id: Date.now().toString(),
       role,
       content,
-      timestamp
-    }]);
+      timestamp,
+      sources
+    };
+    
+    setChatMessages(prev => [...prev, newMessage]);
+    
+    // Save to localStorage
+    try {
+      const storedMessages = JSON.parse(localStorage.getItem('chatMessages') || '[]');
+      localStorage.setItem('chatMessages', JSON.stringify([...storedMessages, newMessage]));
+    } catch (error) {
+      console.error('Error saving chat message to localStorage:', error);
+    }
   };
   
   // Handle sending a message
@@ -54,13 +79,46 @@ const ChatPanel: React.FC<ChatPanelProps> = ({
     // Add user message to chat
     addChatMessage('user', inputText);
     
-    // Clear input
+    // Store the input, then clear it
+    const messageToSend = inputText.trim();
     setInputText('');
     
-    // Placeholder response
-    setTimeout(() => {
-      addChatMessage('assistant', 'This is a placeholder response. Chat functionality will be implemented in a future update.');
-    }, 1000);
+    try {
+      // Get the selected chat model
+      const selectedModel = window.__CHAT_MODEL__ || "gpt-4o";
+      
+      // Convert UI message format to API format
+      // Only include previous messages, not the one just added
+      const previousMessages = chatMessages.map(msg => ({
+        role: msg.role === 'user' ? 'user' : 'assistant',
+        content: msg.content
+      }));
+      
+      // Determine if we should use search (only for Gemini models)
+      const shouldUseSearch = useSearch && isGeminiModel(selectedModel);
+      if (shouldUseSearch) {
+        console.log("Using web search with Gemini model:", selectedModel);
+      }
+      
+      // Call the AI model with the user's message and conversation history
+      const response = await window.electronAPI.generateChatResponse({
+        model: selectedModel,
+        message: messageToSend,
+        history: previousMessages,
+        useSearch: shouldUseSearch
+      });
+      
+      if (response.success && response.data) {
+        // Add the AI response to chat
+        addChatMessage('assistant', response.data, response.sources);
+      } else {
+        // Handle error
+        addChatMessage('assistant', `Sorry, I encountered an error: ${response.error || 'Unknown error'}`);
+      }
+    } catch (error) {
+      console.error('Error generating chat response:', error);
+      addChatMessage('assistant', 'Sorry, something went wrong while generating a response.');
+    }
   };
   
   // Handle Enter key to send message
@@ -115,20 +173,40 @@ const ChatPanel: React.FC<ChatPanelProps> = ({
           
           {/* Chat Message Area */}
           <div className="space-y-2 h-[419px] overflow-y-auto flex flex-col p-1">
-            {chatMessages.map((message, index) => (
-              <div 
-                key={index} 
-                className={`flex ${message.role === 'assistant' ? 'justify-start' : 'justify-end'}`}
-              >
+            {chatMessages.map((message) => (
+              <div key={message.id} className={`flex mb-4 ${message.role === 'user' ? 'justify-end' : 'justify-start'}`}>
                 <div 
                   className={`max-w-[85%] p-3 rounded-lg ${
                     message.role === 'assistant' 
-                      ? 'bg-neutral-800/80 text-white/90 rounded-bl-none' 
-                      : 'bg-blue-600/80 text-white rounded-br-none'
+                      ? 'bg-neutral-800 text-white/90 rounded-bl-none border border-neutral-700' 
+                      : 'bg-neutral-700 text-white/90 rounded-br-none border border-neutral-600'
                   }`}
                 >
                   <div className="text-xs leading-relaxed whitespace-pre-wrap">{message.content}</div>
-                  <div className="text-[10px] text-white/50 mt-1 text-right">{message.timestamp}</div>
+                  
+                  {/* Display sources if available */}
+                  {message.sources && message.sources.length > 0 && (
+                    <div className="mt-2 text-xs border-t border-white/20 pt-2">
+                      <div className="font-semibold text-white/80">Sources:</div>
+                      <ul className="list-disc pl-4">
+                        {message.sources.map((source, index) => (
+                          <li key={index} className="text-white/70">
+                            <button 
+                              onClick={() => window.electronAPI.openExternal(source.url)}
+                              className="text-blue-300 hover:underline cursor-pointer"
+                            >
+                              {source.title || source.url}
+                            </button>
+                          </li>
+                        ))}
+                      </ul>
+                    </div>
+                  )}
+                  
+                  {/* Timestamp */}
+                  <div className={`text-[10px] mt-1 text-right ${
+                    message.role === 'assistant' ? 'text-neutral-400' : 'text-neutral-300'
+                  }`}>{message.timestamp}</div>
                 </div>
               </div>
             ))}
@@ -142,12 +220,32 @@ const ChatPanel: React.FC<ChatPanelProps> = ({
                 onChange={(e) => setInputText(e.target.value)}
                 onKeyDown={handleKeyDown}
                 placeholder="Type a message..."
-                className="w-full p-3 pr-10 h-[60px] max-h-[120px] bg-neutral-800/50 border border-white/10 rounded-lg resize-none text-xs text-white/90 focus:outline-none focus:ring-1 focus:ring-white/20"
+                className="w-full p-3 pr-10 h-[60px] max-h-[120px] bg-neutral-900/80 border border-white/10 rounded-lg resize-none text-xs text-white/90 focus:outline-none focus:ring-1 focus:ring-blue-500/50 focus:border-blue-500/30 placeholder:text-white/40"
               />
             </div>
+            
+            {/* Web Search Toggle Button (Only visible for Gemini models) */}
+            {isGeminiModelActive && (
+              <button
+                onClick={() => setUseSearch(!useSearch)}
+                title={useSearch ? "Web search enabled" : "Web search disabled"}
+                className={`h-[60px] px-3 flex items-center justify-center gap-2 ${
+                  useSearch ? 'bg-blue-600/80 hover:bg-blue-600/90' : 'bg-neutral-700/80 hover:bg-neutral-700/90'
+                } rounded-lg transition-colors text-white/90`}
+              >
+                <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                  <circle cx="12" cy="12" r="10"></circle>
+                  <line x1="2" y1="12" x2="22" y2="12"></line>
+                  <path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"></path>
+                </svg>
+                <span className="text-xs whitespace-nowrap">{useSearch ? "Web On" : "Web Off"}</span>
+              </button>
+            )}
+            
+            {/* Send Button */}
             <button
               onClick={handleSendMessage}
-              className="h-[60px] w-[60px] flex items-center justify-center bg-white hover:bg-white/80 rounded-lg transition-colors"
+              className="h-[60px] w-[60px] flex items-center justify-center bg-white hover:bg-white/90 rounded-lg transition-colors"
             >
               <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="black" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                 <line x1="22" y1="2" x2="11" y2="13"></line>

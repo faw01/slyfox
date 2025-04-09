@@ -39,6 +39,7 @@ export interface AIModel {
     type: string
     budget_tokens: number
   }
+  useSearchGrounding?: boolean
 }
 
 // Single source of truth for all models
@@ -786,7 +787,7 @@ export class AIModelManager {
   async generateCompletion(
     modelId: string,
     messages: Array<{ role: string; content: any }>,
-    options: { signal?: AbortSignal } = {}
+    options: { signal?: AbortSignal; useSearch?: boolean } = {}
   ): Promise<AIResponse> {
     if (!this.initialized) {
       await this.initializeClients()
@@ -1150,50 +1151,65 @@ export class AIModelManager {
               return content;
             }).join("\n\n");
             
-            // For structured output
-            if (needsStructuredOutput && schema) {
-              try {
-                // For Google models, we need to convert schema format
-                const result = await generateObject({
-                  model: clients.google(model.modelId),
-                  schema: schema,
-                  prompt
-                });
-                
-                return {
-                  content: JSON.stringify(result),
-                  _request_id: `ai-sdk-${Date.now()}`
-                };
-              } catch (error) {
-                console.error("Error using Vercel AI SDK generateObject for Google:", error);
-                // Continue to fallback
-              }
-            } 
-            // For regular completions
-            else {
-              try {
-                const { text } = await generateText({
-                  model: clients.google(model.modelId),
-                  prompt
-                });
-                
-                return {
-                  content: text,
-                  _request_id: `ai-sdk-${Date.now()}`
-                };
-              } catch (error) {
-                console.error("Error using Vercel AI SDK generateText for Google:", error);
-                // Continue to fallback
-              }
+            // Get the model to determine if search grounding should be used
+            const model = models.find(m => m.id === modelId);
+            
+            if (!model) {
+              throw new Error(`Model ${modelId} not found`);
             }
+            
+            try {
+              let modelOptions = {};
+              
+              // Set up search grounding if the model supports it or if useSearch is explicitly set to true
+              if (model.useSearchGrounding || options.useSearch) {
+                modelOptions = {
+                  useSearchGrounding: true,
+                  dynamicRetrievalConfig: {
+                    mode: 'MODE_DYNAMIC',
+                    dynamicThreshold: 0.8
+                  }
+                };
+              }
+              
+              // Configure structured output if needed
+              if (needsStructuredOutput) {
+                Object.assign(modelOptions, { structuredOutputs: true });
+              }
+              
+              // Generate text with the AI SDK
+              const { text, sources, providerMetadata } = await generateText({
+                model: clients.google(model.modelId, modelOptions),
+                prompt: prompt
+              });
+              
+              // If we have sources, append them to the response
+              let formattedResponse = text;
+              
+              if (sources && sources.length > 0) {
+                formattedResponse += "\n\n**Sources:**\n";
+                sources.forEach((source, index) => {
+                  formattedResponse += `[${index + 1}] ${source.title || source.url}: ${source.url}\n`;
+                });
+              }
+              
+              return {
+                content: formattedResponse,
+                _request_id: ""
+              };
+            } catch (error) {
+              console.error("AI SDK error with Google model:", error);
+              // Fall back to Google API client
+              return this.callGoogleApi(model.modelId, messages, options);
+            }
+          } else {
+            // Fall back to Google API client
+            return this.callGoogleApi(model?.modelId || modelId, messages, options);
           }
-        } catch (error) {
-          console.error("Error using Vercel AI SDK for Google, falling back to native API:", error);
-          // Fall back to original implementation
+        } catch (error: any) {
+          console.error("Error with Google provider:", error);
+          throw new Error(error.message || "Error with Google provider");
         }
-        
-        // Fallback to original implementation
-        return this.callGoogleApi(modelId, messages, options);
       }
 
       case "deepseek": {

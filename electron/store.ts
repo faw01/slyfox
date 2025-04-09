@@ -14,6 +14,18 @@ interface StoreSchema {
     meta?: string;
     deepgram?: string;
   };
+  hotkeys: {
+    up: string;
+    down: string;
+    left: string;
+    right: string;
+    screenshot: string;
+    solve: string;
+    reset: string;
+    hideApp: string;
+    teleprompter: string;
+    chat: string;
+  };
 }
 
 const store = new Store<StoreSchema>({
@@ -23,7 +35,19 @@ const store = new Store<StoreSchema>({
     opacity: 1.0,
     contentProtection: true,
     taskbarIconHidden: false,
-    apiKeys: {}
+    apiKeys: {},
+    hotkeys: {
+      up: 'CommandOrControl+Up',
+      down: 'CommandOrControl+Down',
+      left: 'CommandOrControl+Left',
+      right: 'CommandOrControl+Right',
+      screenshot: 'CommandOrControl+H',
+      solve: 'CommandOrControl+Enter',
+      reset: 'CommandOrControl+R',
+      hideApp: 'CommandOrControl+B',
+      teleprompter: 'CommandOrControl+T',
+      chat: 'CommandOrControl+D'
+    }
   },
   encryptionKey: "your-encryption-key"
 }) as Store<StoreSchema> & {

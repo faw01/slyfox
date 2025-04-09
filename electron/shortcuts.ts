@@ -9,7 +9,11 @@ export class ShortcutsHelper {
   }
 
   public registerGlobalShortcuts(): void {
-    globalShortcut.register("CommandOrControl+H", async () => {
+    // Get the current hotkey configuration
+    const hotkeys = this.deps.getHotkeys();
+
+    // Screenshot shortcut
+    globalShortcut.register(hotkeys.screenshot, async () => {
       const mainWindow = this.deps.getMainWindow()
       if (mainWindow) {
         console.log("Taking screenshot...")
@@ -26,7 +30,7 @@ export class ShortcutsHelper {
       }
     })
 
-    // Register CMD+X for teleprompter manual recording toggle
+    // Register manual recording toggle for teleprompter
     globalShortcut.register("CommandOrControl+X", () => {
       console.log("Command/Ctrl + X pressed. Toggling manual recording in teleprompter.")
       const mainWindow = this.deps.getMainWindow()
@@ -35,14 +39,14 @@ export class ShortcutsHelper {
       }
     })
 
-    globalShortcut.register("CommandOrControl+Enter", async () => {
+    // Solve shortcut
+    globalShortcut.register(hotkeys.solve, async () => {
       await this.deps.processingHelper?.processScreenshots()
     })
 
-    globalShortcut.register("CommandOrControl+R", () => {
-      console.log(
-        "Command + R pressed. Canceling requests and resetting queues..."
-      )
+    // Reset shortcut
+    globalShortcut.register(hotkeys.reset, () => {
+      console.log("Reset shortcut pressed. Canceling requests and resetting queues...")
 
       // Cancel ongoing API requests
       this.deps.processingHelper?.cancelOngoingRequests()
@@ -63,42 +67,45 @@ export class ShortcutsHelper {
       }
     })
 
-    // New shortcuts for moving the window
-    globalShortcut.register("CommandOrControl+Left", () => {
-      console.log("Command/Ctrl + Left pressed. Moving window left.")
+    // Window movement shortcuts
+    globalShortcut.register(hotkeys.left, () => {
+      console.log("Move window left shortcut pressed.")
       this.deps.moveWindowLeft()
     })
 
-    globalShortcut.register("CommandOrControl+Right", () => {
-      console.log("Command/Ctrl + Right pressed. Moving window right.")
+    globalShortcut.register(hotkeys.right, () => {
+      console.log("Move window right shortcut pressed.")
       this.deps.moveWindowRight()
     })
 
-    globalShortcut.register("CommandOrControl+Down", () => {
-      console.log("Command/Ctrl + down pressed. Moving window down.")
+    globalShortcut.register(hotkeys.down, () => {
+      console.log("Move window down shortcut pressed.")
       this.deps.moveWindowDown()
     })
 
-    globalShortcut.register("CommandOrControl+Up", () => {
-      console.log("Command/Ctrl + Up pressed. Moving window Up.")
+    globalShortcut.register(hotkeys.up, () => {
+      console.log("Move window up shortcut pressed.")
       this.deps.moveWindowUp()
     })
 
-    globalShortcut.register("CommandOrControl+B", () => {
-      console.log("Command/Ctrl + B pressed. Toggling main window.")
+    // Toggle window visibility
+    globalShortcut.register(hotkeys.hideApp, () => {
+      console.log("Toggle window visibility shortcut pressed.")
       this.deps.toggleMainWindow()
     })
 
-    globalShortcut.register("CommandOrControl+T", () => {
-      console.log("Command/Ctrl + T pressed. Toggling STT Panel (teleprompter).")
+    // Toggle teleprompter panel
+    globalShortcut.register(hotkeys.teleprompter, () => {
+      console.log("Toggle teleprompter panel shortcut pressed.")
       const mainWindow = this.deps.getMainWindow()
       if (mainWindow) {
         mainWindow.webContents.send("toggle-stt-panel")
       }
     })
 
-    globalShortcut.register("CommandOrControl+D", () => {
-      console.log("Command/Ctrl + D pressed. Toggling Chat.")
+    // Toggle chat panel
+    globalShortcut.register(hotkeys.chat, () => {
+      console.log("Toggle chat panel shortcut pressed.")
       const mainWindow = this.deps.getMainWindow()
       if (mainWindow) {
         mainWindow.webContents.send("toggle-chat")

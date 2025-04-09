@@ -39,7 +39,9 @@ const HOTKEYS: Hotkey[] = [
   { key: 'screenshot', label: 'Screenshot', description: 'Take a screenshot', defaultValue: 'CommandOrControl+H' },
   { key: 'solve', label: 'Solve', description: 'Process screenshots', defaultValue: 'CommandOrControl+Enter' },
   { key: 'reset', label: 'Reset', description: 'Reset all settings', defaultValue: 'CommandOrControl+R' },
-  { key: 'hideApp', label: 'Toggle Window', description: 'Toggle window visibility', defaultValue: 'CommandOrControl+B' }
+  { key: 'hideApp', label: 'Toggle Window', description: 'Toggle window visibility', defaultValue: 'CommandOrControl+B' },
+  { key: 'teleprompter', label: 'Teleprompter', description: 'Toggle teleprompter panel', defaultValue: 'CommandOrControl+T' },
+  { key: 'chat', label: 'Chat', description: 'Toggle chat panel', defaultValue: 'CommandOrControl+D' }
 ]
 
 // API key provider configs
@@ -364,13 +366,28 @@ export const Settings: React.FC<SettingsProps> = ({
     }
   }
 
-  const loadHotkeys = () => {
-    // Initialize with default values
-    const defaultHotkeys = HOTKEYS.reduce((acc, hotkey) => {
-      acc[hotkey.key] = hotkey.defaultValue
-      return acc
-    }, {} as Record<string, string>)
-    setHotkeys(defaultHotkeys)
+  const loadHotkeys = async () => {
+    try {
+      const savedHotkeys = await window.electronAPI.getHotkeys()
+      if (savedHotkeys) {
+        setHotkeys(savedHotkeys)
+      } else {
+        // Initialize with default values
+        const defaultHotkeys = HOTKEYS.reduce((acc, hotkey) => {
+          acc[hotkey.key] = hotkey.defaultValue
+          return acc
+        }, {} as Record<string, string>)
+        setHotkeys(defaultHotkeys)
+      }
+    } catch (error) {
+      console.error('Failed to load hotkeys:', error)
+      // Initialize with default values as fallback
+      const defaultHotkeys = HOTKEYS.reduce((acc, hotkey) => {
+        acc[hotkey.key] = hotkey.defaultValue
+        return acc
+      }, {} as Record<string, string>)
+      setHotkeys(defaultHotkeys)
+    }
   }
 
   const handleOpacityChange = async (newOpacity: number) => {
@@ -428,9 +445,17 @@ export const Settings: React.FC<SettingsProps> = ({
     }
   }
 
-  const handleHotkeyChange = (key: string, value: string) => {
+  const handleHotkeyChange = async (key: string, value: string) => {
     if (isLocked) return
-    setHotkeys(prev => ({ ...prev, [key]: value }))
+    try {
+      // Update local state
+      setHotkeys(prev => ({ ...prev, [key]: value }))
+      
+      // Save to electron store
+      await window.electronAPI.setHotkey({ key, value })
+    } catch (error) {
+      console.error('Failed to update hotkey:', error)
+    }
   }
 
   const handleTaskbarIconToggle = async () => {

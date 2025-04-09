@@ -36,6 +36,9 @@ const QueueCommands: React.FC<QueueCommandsProps> = ({
   const tooltipRef = useRef<HTMLDivElement>(null)
   const { showToast } = useToast()
 
+  // State for hotkeys
+  const [hotkeys, setHotkeys] = useState<Record<string, string>>({})
+
   useEffect(() => {
     const loadVersions = async () => {
       try {
@@ -77,20 +80,9 @@ const QueueCommands: React.FC<QueueCommandsProps> = ({
       setIsChatOpen(prev => !prev)
     }
     
-    // Once onToggleChat is properly implemented in ElectronAPI, uncomment this
-    // const cleanup = window.electronAPI.onToggleChat(handleToggleChat)
-    // return () => { cleanup() }
-    
-    // For now, implement a temporary keyboard shortcut handler
-    const handleKeyDown = (e: KeyboardEvent) => {
-      if ((e.metaKey || e.ctrlKey) && e.key === 'd') {
-        handleToggleChat()
-      }
-    }
-    
-    window.addEventListener('keydown', handleKeyDown)
+    const cleanup = window.electronAPI.onToggleChat(handleToggleChat)
     return () => {
-      window.removeEventListener('keydown', handleKeyDown)
+      cleanup()
     }
   }, [])
 
@@ -110,6 +102,46 @@ const QueueCommands: React.FC<QueueCommandsProps> = ({
 
   const handleMouseLeave = () => {
     setIsTooltipVisible(false)
+  }
+
+  // Load hotkeys from store
+  const loadHotkeys = async () => {
+    try {
+      const savedHotkeys = await window.electronAPI.getHotkeys()
+      if (savedHotkeys) {
+        setHotkeys(savedHotkeys)
+      }
+    } catch (error) {
+      console.error('Failed to load hotkeys:', error)
+    }
+  }
+
+  // Listen for hotkey changes
+  useEffect(() => {
+    loadHotkeys()
+    
+    // Set up listener for hotkey changes
+    const cleanup = window.electronAPI.onHotkeysChanged(() => {
+      console.log('Hotkeys changed, reloading...')
+      loadHotkeys()
+    })
+    
+    return () => {
+      cleanup()
+    }
+  }, [])
+
+  // Helper function to get the key part from a hotkey string (e.g. "D" from "CommandOrControl+D")
+  const getKeyFromHotkey = (hotkeyString: string): string => {
+    const parts = hotkeyString.split('+')
+    const key = parts[parts.length - 1]
+    
+    // Special case for Enter key - display the arrow symbol
+    if (key === 'Enter') {
+      return '↵'
+    }
+    
+    return key
   }
 
   return (
@@ -140,7 +172,7 @@ const QueueCommands: React.FC<QueueCommandsProps> = ({
                 {COMMAND_KEY}
               </button>
               <button className="bg-white/10 rounded-md px-1.5 py-1 text-[11px] leading-none text-white/70 select-none cursor-default">
-                H
+                {hotkeys.screenshot ? getKeyFromHotkey(hotkeys.screenshot) : 'H'}
               </button>
             </div>
           </div>
@@ -184,7 +216,7 @@ const QueueCommands: React.FC<QueueCommandsProps> = ({
                     {COMMAND_KEY}
                   </button>
                   <button className="bg-white/10 rounded-md px-1.5 py-1 text-[11px] leading-none text-white/70 select-none cursor-default">
-                    ↵
+                    {hotkeys.solve ? getKeyFromHotkey(hotkeys.solve) : '↵'}
                   </button>
                 </div>
               </div>
@@ -205,7 +237,7 @@ const QueueCommands: React.FC<QueueCommandsProps> = ({
                   {COMMAND_KEY}
                 </button>
                 <button className="bg-white/10 rounded-md px-1.5 py-1 text-[11px] leading-none text-white/70 select-none cursor-default">
-                  T
+                  {hotkeys.teleprompter ? getKeyFromHotkey(hotkeys.teleprompter) : 'T'}
                 </button>
               </div>
             </div>
@@ -236,7 +268,7 @@ const QueueCommands: React.FC<QueueCommandsProps> = ({
                   {COMMAND_KEY}
                 </button>
                 <button className="bg-white/10 rounded-md px-1.5 py-1 text-[11px] leading-none text-white/70 select-none cursor-default">
-                  D
+                  {hotkeys.chat ? getKeyFromHotkey(hotkeys.chat) : 'D'}
                 </button>
               </div>
             </div>
@@ -355,7 +387,7 @@ const QueueCommands: React.FC<QueueCommandsProps> = ({
                               {COMMAND_KEY}
                             </span>
                             <span className="bg-white/10 rounded-md px-1.5 py-1 text-[11px] leading-none text-white/70 select-none cursor-default">
-                              B
+                              {hotkeys.hideApp ? getKeyFromHotkey(hotkeys.hideApp) : 'B'}
                             </span>
                           </div>
                         </div>
@@ -399,7 +431,7 @@ const QueueCommands: React.FC<QueueCommandsProps> = ({
                               {COMMAND_KEY}
                             </span>
                             <span className="bg-white/10 rounded-md px-1.5 py-1 text-[11px] leading-none text-white/70 select-none cursor-default">
-                              H
+                              {hotkeys.screenshot ? getKeyFromHotkey(hotkeys.screenshot) : 'H'}
                             </span>
                           </div>
                         </div>
@@ -452,7 +484,7 @@ const QueueCommands: React.FC<QueueCommandsProps> = ({
                               {COMMAND_KEY}
                             </span>
                             <span className="bg-white/10 rounded-md px-1.5 py-1 text-[11px] leading-none text-white/70 select-none cursor-default">
-                              ↵
+                              {hotkeys.solve ? getKeyFromHotkey(hotkeys.solve) : '↵'}
                             </span>
                           </div>
                         </div>
@@ -472,6 +504,7 @@ const QueueCommands: React.FC<QueueCommandsProps> = ({
                         currentModel={currentModel}
                         setModel={setModel}
                         isLocked={isSettingsLocked}
+                        onClose={() => setIsTooltipVisible(false)}
                       />
                     </div>
                   </div>

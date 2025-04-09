@@ -88,11 +88,25 @@ interface ElectronAPI {
     type: 'screen';
   }[]>;
   saveTempAudio: (audioBlob: Blob) => Promise<string>
-  runWhisperCLI: (filePath: string, modelName: string) => Promise<void>
+  runWhisperCLI: (filePath: string, modelName: string) => Promise<string>
   cleanupTempFile: (filePath: string) => Promise<void>
-  generateTeleprompterResponse: (transcript: string) => Promise<void>
+  generateTeleprompterResponse: (transcript: string) => Promise<{ success: boolean; data?: string; error?: string }>
   onToggleSTTPanel: (callback: () => void) => () => void
   onToggleChat: (callback: () => void) => () => void
+  generateChatResponse: (options: { 
+    model: string; 
+    message: string;
+    history?: Array<{role: string; content: string}>
+    useSearch?: boolean;
+  }) => Promise<{ 
+    success: boolean; 
+    data?: string; 
+    error?: string;
+    sources?: Array<{title?: string; url: string}>;
+  }>
+  getHotkeys: () => Promise<Array<{ key: string; value: string }>>
+  setHotkey: (data: { key: string; value: string }) => Promise<void>
+  onHotkeysChanged: (callback: () => void) => () => void
 }
 
 export const PROCESSING_EVENTS = {
@@ -377,21 +391,53 @@ const electronAPI = {
     }
   },
   saveTempAudio: async (audioBlob: Blob) => {
-    const arrayBuffer = await audioBlob.arrayBuffer();
-    const uint8Array = new Uint8Array(arrayBuffer);
-    return ipcRenderer.invoke('save-temp-audio', uint8Array);
+    try {
+      // Convert the Blob to an ArrayBuffer
+      const arrayBuffer = await audioBlob.arrayBuffer()
+      // Convert ArrayBuffer to Buffer
+      const buffer = Buffer.from(arrayBuffer)
+      // Send to Main process
+      return ipcRenderer.invoke('save-temp-audio', buffer)
+    } catch (error) {
+      console.error('Error converting audio data:', error)
+      throw error
+    }
   },
-  runWhisperCLI: (filePath: string, modelName: string) => 
-    ipcRenderer.invoke('run-whisper-cli', filePath, modelName),
-  cleanupTempFile: (filePath: string) => 
-    ipcRenderer.invoke('cleanup-temp-file', filePath),
-  generateTeleprompterResponse: (transcript: string) => 
-    ipcRenderer.invoke('generate-teleprompter-response', transcript),
+  runWhisperCLI: (filePath: string, modelName: string) => {
+    return ipcRenderer.invoke('run-whisper-cli', filePath, modelName)
+  },
+  cleanupTempFile: (filePath: string) => {
+    return ipcRenderer.invoke('cleanup-temp-file', filePath)
+  },
+  generateTeleprompterResponse: (transcript: string) => {
+    return ipcRenderer.invoke('generate-teleprompter-response', transcript)
+  },
   onToggleChat: (callback: () => void) => {
     const subscription = () => callback()
     ipcRenderer.on("toggle-chat", subscription)
     return () => {
       ipcRenderer.removeListener("toggle-chat", subscription)
+    }
+  },
+  generateChatResponse: (options: { 
+    model: string; 
+    message: string;
+    history?: Array<{role: string; content: string}>
+    useSearch?: boolean;
+  }) => {
+    return ipcRenderer.invoke("generate-chat-response", options)
+  },
+  getHotkeys: () => {
+    return ipcRenderer.invoke('get-hotkeys')
+  },
+  setHotkey: (data: { key: string; value: string }) => {
+    return ipcRenderer.invoke('set-hotkey', data)
+  },
+  onHotkeysChanged: (callback: () => void) => {
+    const subscription = () => callback()
+    ipcRenderer.on("hotkeys-changed", subscription)
+    return () => {
+      ipcRenderer.removeListener("hotkeys-changed", subscription)
     }
   }
 } as ElectronAPI

@@ -94,12 +94,27 @@ export interface ElectronAPI {
   getTaskbarIcon: () => Promise<boolean>
   setTaskbarIcon: (hidden: boolean) => Promise<{ success: boolean; error?: string }>
 
-  // Teleprompter methods
-  generateTeleprompterResponse: (transcript: string) => Promise<{ 
+  // Chat methods
+  generateChatResponse: (options: { 
+    model: string; 
+    message: string;
+    history?: Array<{role: string; content: string}>;
+    useSearch?: boolean;
+  }) => Promise<{ 
     success: boolean; 
     data?: string; 
-    error?: string 
+    error?: string;
+    sources?: Array<{title?: string; url: string}>;
   }>
+  onToggleChat: (callback: () => void) => () => void
+  
+  // Teleprompter methods
+  generateTeleprompterResponse: (transcript: string) => Promise<{ success: boolean; data?: string; error?: string }>
+
+  // Hotkey methods
+  getHotkeys: () => Promise<Record<string, string>>
+  setHotkey: (data: { key: string; value: string }) => Promise<{ success: boolean; error?: string }>
+  onHotkeysChanged: (callback: () => void) => () => void
 }
 
 declare global {
@@ -119,6 +134,8 @@ declare global {
     __MODEL__: string
     __VISION_MODEL__: string
     __STT_MODEL__: string
+    __CHAT_MODEL__: string
+    __TELEPROMPTER_MODEL__: string
     __THEME__: 'light' | 'dark'
   }
 }

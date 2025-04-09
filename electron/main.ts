@@ -6,13 +6,15 @@ import { ScreenshotHelper } from "./ScreenshotHelper"
 import { ShortcutsHelper } from "./shortcuts"
 import { initAutoUpdater } from "./autoUpdater"
 import * as dotenv from "dotenv"
-import { store } from "./store"
+import { store, type StoreSchema } from "./store"
 import { TeleprompterHelper } from "./TeleprompterHelper"
 import { createAIManager } from "../src/lib/models"
+import { ChatHelper } from "./ChatHelper"
+import { globalShortcut } from "electron"
 
 // Enable WebGPU
-app.commandLine.appendSwitch('enable-unsafe-webgpu')
-app.commandLine.appendSwitch('enable-features', 'Vulkan,WebGPU')
+// app.commandLine.appendSwitch('enable-unsafe-webgpu')
+// app.commandLine.appendSwitch('enable-features', 'Vulkan,WebGPU')
 
 // Constants
 const isDev = !app.isPackaged
@@ -36,6 +38,7 @@ const state = {
   processingHelper: null as ProcessingHelper | null,
   teleprompterHelper: null as TeleprompterHelper | null,
   aiManager: null as any,
+  chatHelper: null as ChatHelper | null,
 
   // View and state management
   view: "queue" as "queue" | "solutions" | "debug",
@@ -94,6 +97,7 @@ export interface IShortcutsHelperDeps {
   moveWindowRight: () => void
   moveWindowUp: () => void
   moveWindowDown: () => void
+  getHotkeys: () => StoreSchema['hotkeys']
 }
 
 export interface IIpcHandlerDeps {
@@ -107,6 +111,7 @@ export interface IIpcHandlerDeps {
   getImagePreview: (filepath: string) => Promise<string>
   processingHelper: ProcessingHelper | null
   teleprompterHelper: TeleprompterHelper | null
+  chatHelper: ChatHelper | null
   PROCESSING_EVENTS: typeof state.PROCESSING_EVENTS
   takeScreenshot: () => Promise<string>
   getView: () => "queue" | "solutions" | "debug"
@@ -117,6 +122,7 @@ export interface IIpcHandlerDeps {
   moveWindowRight: () => void
   moveWindowUp: () => void
   moveWindowDown: () => void
+  updateHotkeys: () => void
 }
 
 // Initialize helpers
@@ -163,6 +169,17 @@ function initializeHelpers() {
   })
   console.log("teleprompterHelper initialized:", !!state.teleprompterHelper);
   
+  state.chatHelper = new ChatHelper({
+    aiManager: state.aiManager,
+    getMainWindow: getMainWindow,
+    store: store,
+    getApiKey: (provider: string) => {
+      const apiKeys = store.get('apiKeys') || {}
+      return apiKeys[provider as keyof typeof apiKeys] || null
+    }
+  })
+  console.log("chatHelper initialized:", !!state.chatHelper);
+  
   state.shortcutsHelper = new ShortcutsHelper({
     getMainWindow,
     takeScreenshot,
@@ -184,7 +201,8 @@ function initializeHelpers() {
         )
       ),
     moveWindowUp: () => moveWindowVertical((y) => y - state.step),
-    moveWindowDown: () => moveWindowVertical((y) => y + state.step)
+    moveWindowDown: () => moveWindowVertical((y) => y + state.step),
+    getHotkeys: () => store.get('hotkeys') || {}
   } as IShortcutsHelperDeps)
 }
 
@@ -563,6 +581,7 @@ async function initializeApp() {
       getImagePreview,
       processingHelper: state.processingHelper,
       teleprompterHelper: state.teleprompterHelper,
+      chatHelper: state.chatHelper,
       PROCESSING_EVENTS: state.PROCESSING_EVENTS,
       takeScreenshot,
       getView,
@@ -581,7 +600,10 @@ async function initializeApp() {
           )
         ),
       moveWindowUp: () => moveWindowVertical((y) => y - state.step),
-      moveWindowDown: () => moveWindowVertical((y) => y + state.step)
+      moveWindowDown: () => moveWindowVertical((y) => y + state.step),
+      updateHotkeys: () => {
+        updateHotkeys();
+      }
     });
     console.log("IPC handlers initialized");
     
@@ -753,6 +775,17 @@ function updateClickThroughState(): void {
   } else {
     state.mainWindow.setIgnoreMouseEvents(false)
   }
+}
+
+// Function to update hotkeys by unregistering all and registering current ones
+function updateHotkeys(): void {
+  if (!state.shortcutsHelper) return;
+  
+  // Unregister all existing shortcuts
+  globalShortcut.unregisterAll();
+  
+  // Re-register shortcuts with current configuration
+  state.shortcutsHelper.registerGlobalShortcuts();
 }
 
 // Export state and functions for other modules

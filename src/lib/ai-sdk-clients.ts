@@ -38,6 +38,6 @@ export function createAISDKClients(apiKeys: APIKeys) {
   return {
     openai: openaiInstance ? (modelId: string) => openaiInstance(modelId) : null,
     anthropic: anthropicInstance ? (modelId: string) => anthropicInstance(modelId) : null,
-    google: googleInstance ? (modelId: string) => googleInstance(modelId) : null
+    google: googleInstance ? (modelId: string, options?: any) => googleInstance(modelId, options) : null
   };
 } 
