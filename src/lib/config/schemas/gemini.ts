@@ -97,13 +97,33 @@ export const geminiSolutionSchema = {
       },
       required: ["time", "space"]
     },
+    clarifying_qa: {
+      type: SchemaType.ARRAY,
+      items: {
+        type: SchemaType.OBJECT,
+        properties: {
+          question: {
+            type: SchemaType.STRING,
+            description: "Important question to ask the interviewer",
+            nullable: false
+          },
+          answer: {
+            type: SchemaType.STRING,
+            description: "Potential answer from the interviewer",
+            nullable: false
+          }
+        },
+        required: ["question", "answer"]
+      },
+      description: "Important clarifying questions to ask the interviewer and potential answers"
+    },
     explanation: {
       type: SchemaType.STRING,
       description: "Step by step explanation of the code",
       nullable: false
     }
   },
-  required: ["approach", "code", "complexity", "explanation"]
+  required: ["approach", "code", "complexity", "explanation", "clarifying_qa"]
 };
 
 /**

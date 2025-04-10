@@ -45,6 +45,18 @@ export const solutionSchema = {
         ],
         description: "The algorithmic pattern used in this solution"
       },
+      clarifying_qa: {
+        type: "array",
+        items: {
+          type: "object",
+          properties: {
+            question: { type: "string" },
+            answer: { type: "string" }
+          },
+          required: ["question", "answer"]
+        },
+        description: "Important clarifying questions to ask the interviewer and their potential answers"
+      },
       time_complexity: {
         type: "string",
         description: "Time complexity analysis in Big O notation"
@@ -65,7 +77,7 @@ export const solutionSchema = {
         required: ["problem_number", "title", "difficulty", "pattern"]
       }
     },
-    required: ["code", "thoughts", "approach", "time_complexity", "space_complexity"]
+    required: ["code", "thoughts", "approach", "time_complexity", "space_complexity", "clarifying_qa"]
   }
 };
 
@@ -109,6 +121,18 @@ export const detailedSolutionSchema = {
       ],
       description: "The algorithmic pattern used in this solution"
     },
+    clarifying_qa: {
+      type: "array",
+      items: {
+        type: "object",
+        properties: {
+          question: { type: "string" },
+          answer: { type: "string" }
+        },
+        required: ["question", "answer"]
+      },
+      description: "Important clarifying questions to ask the interviewer and their potential answers"
+    },
     leetcode_match: {
       type: "object",
       properties: {
@@ -135,7 +159,8 @@ export const detailedSolutionSchema = {
     "thoughts",
     "approach",
     "time_complexity",
-    "space_complexity"
+    "space_complexity",
+    "clarifying_qa"
   ],
   additionalProperties: false
 }; 

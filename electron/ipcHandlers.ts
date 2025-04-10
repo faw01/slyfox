@@ -251,6 +251,17 @@ export function initializeIpcHandlers(deps: IIpcHandlerDeps): void {
     }
   })
 
+  // Add handler for setting problem info
+  ipcMain.handle("set-problem-info", (_event, problemInfo: any) => {
+    try {
+      deps.setProblemInfo(problemInfo)
+      return { success: true }
+    } catch (error) {
+      console.error("Error setting problem info:", error)
+      return { error: "Failed to set problem info" }
+    }
+  })
+
   // Reset handlers
   ipcMain.handle("trigger-reset", () => {
     try {

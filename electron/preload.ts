@@ -41,6 +41,7 @@ interface ElectronAPI {
   triggerScreenshot: () => Promise<{ success: boolean; error?: string }>
   triggerProcessScreenshots: () => Promise<{ success: boolean; error?: string }>
   triggerReset: () => Promise<{ success: boolean; error?: string }>
+  setProblemInfo: (problemInfo: any) => Promise<void>
   triggerMoveLeft: () => Promise<{ success: boolean; error?: string }>
   triggerMoveRight: () => Promise<{ success: boolean; error?: string }>
   triggerMoveUp: () => Promise<{ success: boolean; error?: string }>
@@ -93,6 +94,7 @@ interface ElectronAPI {
   generateTeleprompterResponse: (transcript: string) => Promise<{ success: boolean; data?: string; error?: string }>
   onToggleSTTPanel: (callback: () => void) => () => void
   onToggleChat: (callback: () => void) => () => void
+  onToggleManualRecording: (callback: () => void) => () => void
   generateChatResponse: (options: { 
     model: string; 
     message: string;
@@ -280,11 +282,27 @@ const electronAPI = {
       ipcRenderer.removeListener("toggle-stt-panel", subscription)
     }
   },
+  onToggleManualRecording: (callback: () => void) => {
+    const subscription = () => callback()
+    ipcRenderer.on("toggle-manual-recording", subscription)
+    return () => {
+      ipcRenderer.removeListener("toggle-manual-recording", subscription)
+    }
+  },
+  onToggleChat: (callback: () => void) => {
+    const subscription = () => callback()
+    ipcRenderer.on("toggle-chat", subscription)
+    return () => {
+      ipcRenderer.removeListener("toggle-chat", subscription)
+    }
+  },
   openExternal: (url: string) => shell.openExternal(url),
   triggerScreenshot: () => ipcRenderer.invoke("trigger-screenshot"),
   triggerProcessScreenshots: () =>
     ipcRenderer.invoke("trigger-process-screenshots"),
   triggerReset: () => ipcRenderer.invoke("trigger-reset"),
+  setProblemInfo: (problemInfo: any) => 
+    ipcRenderer.invoke("set-problem-info", problemInfo),
   triggerMoveLeft: () => ipcRenderer.invoke("trigger-move-left"),
   triggerMoveRight: () => ipcRenderer.invoke("trigger-move-right"),
   triggerMoveUp: () => ipcRenderer.invoke("trigger-move-up"),
@@ -411,13 +429,6 @@ const electronAPI = {
   },
   generateTeleprompterResponse: (transcript: string) => {
     return ipcRenderer.invoke('generate-teleprompter-response', transcript)
-  },
-  onToggleChat: (callback: () => void) => {
-    const subscription = () => callback()
-    ipcRenderer.on("toggle-chat", subscription)
-    return () => {
-      ipcRenderer.removeListener("toggle-chat", subscription)
-    }
   },
   generateChatResponse: (options: { 
     model: string; 

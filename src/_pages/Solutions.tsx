@@ -168,6 +168,45 @@ export const LeetcodeMatchSection = ({
   </div>
 )
 
+export const ClarifyingQASection = ({
+  clarifyingQA,
+  isLoading
+}: {
+  clarifyingQA: ProblemStatementData['clarifying_qa'] | null
+  isLoading: boolean
+}) => (
+  <div className="space-y-2">
+    <h2 className="text-[13px] font-medium text-white tracking-wide">
+      Clarifying Questions
+    </h2>
+    {isLoading ? (
+      <p className="text-xs bg-gradient-to-r from-gray-300 via-gray-100 to-gray-300 bg-clip-text text-transparent animate-pulse">
+        Generating key questions...
+      </p>
+    ) : clarifyingQA && clarifyingQA.length > 0 ? (
+      <div className="space-y-3">
+        {clarifyingQA.map((qa, index) => (
+          <div key={index} className="space-y-1">
+            <div className="flex items-start gap-2 text-[13px] leading-[1.4] text-blue-200">
+              <div className="w-1 h-1 rounded-full bg-blue-400/80 mt-2 shrink-0" />
+              <div>
+                <span className="font-medium">Q: </span>
+                {qa.question}
+              </div>
+            </div>
+            <div className="flex items-start gap-2 text-[13px] leading-[1.4] text-gray-200 ml-3 pl-3 border-l border-gray-700">
+              <span className="font-medium text-green-300">A: </span>
+              {qa.answer}
+            </div>
+          </div>
+        ))}
+      </div>
+    ) : (
+      <p className="text-[13px] text-gray-400">No clarifying questions available</p>
+    )}
+  </div>
+)
+
 export const ApproachSection = ({
   approach,
   isLoading
@@ -226,6 +265,7 @@ const Solutions: React.FC<SolutionsProps> = ({
     null
   )
   const [leetcodeMatchData, setLeetcodeMatchData] = useState<ProblemStatementData['leetcode_match'] | null>(null)
+  const [clarifyingQAData, setClarifyingQAData] = useState<ProblemStatementData['clarifying_qa'] | null>(null)
   const [approachData, setApproachData] = useState<string | null>(null)
 
   const [isTooltipVisible, setIsTooltipVisible] = useState(false)
@@ -380,7 +420,8 @@ const Solutions: React.FC<SolutionsProps> = ({
           time_complexity: timeComplexity,
           space_complexity: spaceComplexity,
           leetcode_match: data.leetcode_match || null,
-          approach: data.approach || null
+          approach: data.approach || null,
+          clarifying_qa: data.clarifying_qa || null
         }
 
         queryClient.setQueryData(["solution"], solutionData)
@@ -389,7 +430,18 @@ const Solutions: React.FC<SolutionsProps> = ({
         setTimeComplexityData(timeComplexity || null)
         setSpaceComplexityData(spaceComplexity || null)
         setLeetcodeMatchData(data.leetcode_match || null)
+        setClarifyingQAData(data.clarifying_qa || null)
         setApproachData(data.approach || null)
+
+        // Save solution data to localStorage for the ChatPanel
+        localStorage.setItem('solution_data', JSON.stringify(solutionData))
+        
+        // Ensure problem_info is also stored in localStorage
+        if (!localStorage.getItem('problem_info') && data.problem_info) {
+          localStorage.setItem('problem_info', JSON.stringify(data.problem_info))
+        } else if (queryClient.getQueryData(["problem_statement"])) {
+          localStorage.setItem('problem_info', JSON.stringify(queryClient.getQueryData(["problem_statement"])))
+        }
 
         // Fetch latest screenshots when solution is successful
         const fetchScreenshots = async () => {
@@ -528,10 +580,10 @@ const Solutions: React.FC<SolutionsProps> = ({
           setLanguage={setLanguage}
         />
       ) : (
-        <div ref={contentRef} className="relative space-y-3 px-4 py-3">
+        <div ref={contentRef} className="relative space-y-3 px-4 py-3 cursor-default select-none">
           {/* Conditionally render the screenshot queue if solutionData is available */}
           {solutionData && (
-            <div className="bg-transparent w-fit">
+            <div className="bg-transparent w-fit cursor-default select-none">
               <div className="pb-3">
                 <div className="space-y-3 w-fit">
                   <ScreenshotQueue
@@ -557,7 +609,7 @@ const Solutions: React.FC<SolutionsProps> = ({
           />
 
           {/* Main Content - Modified width constraints */}
-          <div className="w-full text-sm text-black bg-black/60 rounded-md">
+          <div className="w-full text-sm text-black bg-black/60 rounded-md cursor-default select-none">
             <div className="rounded-lg overflow-hidden">
               <div className="px-4 py-3 space-y-4 max-w-full">
                 {!solutionData && (
@@ -596,6 +648,11 @@ const Solutions: React.FC<SolutionsProps> = ({
                     />
                     <LeetcodeMatchSection
                       leetcodeMatch={leetcodeMatchData}
+                      isLoading={!problemStatementData}
+                    />
+
+                    <ClarifyingQASection
+                      clarifyingQA={clarifyingQAData}
                       isLoading={!problemStatementData}
                     />
 

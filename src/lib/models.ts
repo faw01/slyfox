@@ -7,6 +7,7 @@ import { ollama } from "./ollama-client"
 import { ElectronAPI } from "../types/electron"
 import { generateText, generateObject } from "ai"
 import { createAISDKClients } from "./ai-sdk-clients"
+import { openai } from "@ai-sdk/openai"
 
 // Import centralized schemas
 import { 
@@ -244,19 +245,10 @@ export const allModels: AIModel[] = [
     provider: "deepseek",
     modelId: "deepseek-v3",
     maxTokens: 4096,
-    isVisionModel: true
+    isVisionModel: false
   },
   
   // Llama Models
-  {
-    id: "llama-3.3",
-    name: "Llama 3.3",
-    description: "Fast | ??? CF Elo",
-    provider: "meta",
-    modelId: "llama:3.3",
-    maxTokens: 4096,
-    isVisionModel: false
-  },
   {
     id: "llama-4-scout",
     name: "Llama 4 Scout",
@@ -264,7 +256,7 @@ export const allModels: AIModel[] = [
     provider: "meta",
     modelId: "llama:4-scout",
     maxTokens: 8192,
-    isVisionModel: false
+    isVisionModel: true
   },
   {
     id: "llama-4-maverick",
@@ -272,6 +264,15 @@ export const allModels: AIModel[] = [
     description: "Powerful | ??? CF Elo",
     provider: "meta",
     modelId: "llama:4-maverick",
+    maxTokens: 8192,
+    isVisionModel: true
+  },
+  {
+    id: "llama-4-behemoth",
+    name: "Llama 4 Behemoth",
+    description: "Powerful | ??? CF Elo",
+    provider: "meta",
+    modelId: "llama:4-behemoth",
     maxTokens: 8192,
     isVisionModel: true
   },
@@ -586,11 +587,8 @@ export class AIModelManager {
     const model = this.google.getGenerativeModel({ 
       model: modelId,
       generationConfig: {
-        responseMimeType: "application/json",
-        responseSchema: getGeminiSchemaForTask(
-          messages[0].content.includes("Debug this code") ? "debug" :
-          messages[0].content.includes("Extract the coding problem") ? "extract" : "solve"
-        )
+        responseMimeType: "application/json"
+        // Removed response schema as it causes formatting issues with Gemini models
       }
     })
 
@@ -921,14 +919,30 @@ export class AIModelManager {
             // For regular completions
             else {
               try {
-                const { text } = await generateText({
+                const { text, sources } = await generateText({
                   model: clients.openai(model.modelId),
                   prompt,
-                  ...aiOptions
+                  ...aiOptions,
+                  // Add web search tool if requested
+                  ...(options.useSearch ? {
+                    tools: {
+                      web_search_preview: openai.tools.webSearchPreview(),
+                    },
+                    toolChoice: { type: 'tool', toolName: 'web_search_preview' }
+                  } : {})
                 });
                 
+                // If we have sources, format them for display
+                let formattedResponse = text;
+                if (sources && sources.length > 0) {
+                  formattedResponse += "\n\n**Sources:**\n";
+                  sources.forEach((source, index) => {
+                    formattedResponse += `[${index + 1}] ${source.title || source.url}: ${source.url}\n`;
+                  });
+                }
+                
                 return {
-                  content: text,
+                  content: formattedResponse,
                   _request_id: `ai-sdk-${Date.now()}`
                 };
               } catch (error) {
@@ -1174,7 +1188,7 @@ export class AIModelManager {
               
               // Configure structured output if needed
               if (needsStructuredOutput) {
-                Object.assign(modelOptions, { structuredOutputs: true });
+                Object.assign(modelOptions, { structuredOutputs: false });
               }
               
               // Generate text with the AI SDK

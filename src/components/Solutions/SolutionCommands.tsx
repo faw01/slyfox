@@ -6,6 +6,7 @@ import { ModelSelector } from "../shared/ModelSelector"
 import { Settings } from "../shared/Settings"
 import { COMMAND_KEY } from '../../utils/platform'
 import STTPanel from "../shared/STTPanel"
+import ChatPanel from "../shared/ChatPanel"
 
 export interface SolutionCommandsProps {
   onTooltipVisibilityChange: (visible: boolean, height: number) => void
@@ -31,6 +32,7 @@ const SolutionCommands: React.FC<SolutionCommandsProps> = ({
 }) => {
   const [isTooltipVisible, setIsTooltipVisible] = useState(false)
   const [isSTTPanelOpen, setIsSTTPanelOpen] = useState(false)
+  const [isChatOpen, setIsChatOpen] = useState(false)
   const [isSettingsLocked, setIsSettingsLocked] = useState(true)
   const tooltipRef = useRef<HTMLDivElement>(null)
   const { showToast } = useToast()
@@ -67,11 +69,23 @@ const SolutionCommands: React.FC<SolutionCommandsProps> = ({
     }
   }, [])
 
+  // Listen for toggle-chat event from main process
   useEffect(() => {
-    if (isSTTPanelOpen && isTooltipVisible) {
+    const handleToggleChat = () => {
+      setIsChatOpen(prev => !prev)
+    }
+    
+    const cleanup = window.electronAPI.onToggleChat(handleToggleChat)
+    return () => {
+      cleanup()
+    }
+  }, [])
+
+  useEffect(() => {
+    if ((isSTTPanelOpen || isChatOpen) && isTooltipVisible) {
       setIsTooltipVisible(false)
     }
-  }, [isSTTPanelOpen])
+  }, [isSTTPanelOpen, isChatOpen])
 
   const handleToggleSettings = () => {
     setIsTooltipVisible(!isTooltipVisible)
@@ -128,7 +142,7 @@ const SolutionCommands: React.FC<SolutionCommandsProps> = ({
               >
                 <span className="text-[11px] leading-none truncate select-none cursor-default">
                   {extraScreenshots.length === 0
-                    ? "Screenshot again"
+                    ? "Screenshot"
                     : "Screenshot"}
                 </span>
                 <div className="flex gap-1">
@@ -199,7 +213,7 @@ const SolutionCommands: React.FC<SolutionCommandsProps> = ({
               }
             }}
           >
-            <span className="text-[11px] leading-none select-none cursor-default">Start Over</span>
+            <span className="text-[11px] leading-none select-none cursor-default">Restart</span>
             <div className="flex gap-1">
               <button className="bg-white/10 rounded-md px-1.5 py-1 text-[11px] leading-none text-white/70 select-none cursor-default">
                 {COMMAND_KEY}
@@ -209,9 +223,6 @@ const SolutionCommands: React.FC<SolutionCommandsProps> = ({
               </button>
             </div>
           </div>
-
-          {/* Separator */}
-          <div className="mx-2 h-4 w-px bg-white/20" />
 
           {/* Teleprompter */}
           <div className="relative inline-block">
@@ -241,9 +252,34 @@ const SolutionCommands: React.FC<SolutionCommandsProps> = ({
               />
             )}
           </div>
+          
+          {/* Chat */}
+          <div className="relative inline-block">
+            <div 
+              className="flex items-center gap-2 rounded px-2 py-1.5 hover:bg-white/10 transition-colors cursor-default"
+              onClick={() => setIsChatOpen(!isChatOpen)}
+            >
+              <span className="text-[11px] leading-none truncate select-none cursor-default">
+                Chat
+              </span>
+              <div className="flex gap-1">
+                <button className="bg-white/10 rounded-md px-1.5 py-1 text-[11px] leading-none text-white/70 select-none cursor-default">
+                  {COMMAND_KEY}
+                </button>
+                <button className="bg-white/10 rounded-md px-1.5 py-1 text-[11px] leading-none text-white/70 select-none cursor-default">
+                  D
+                </button>
+              </div>
+            </div>
 
-          {/* Separator */}
-          <div className="mx-2 h-4 w-px bg-white/20" />
+            {/* Chat Panel */}
+            {isChatOpen && (
+              <ChatPanel 
+                isOpen={isChatOpen}
+                onClose={() => setIsChatOpen(false)}
+              />
+            )}
+          </div>
 
           {/* Settings with Tooltip */}
           <div className="relative inline-block">
@@ -472,7 +508,7 @@ const SolutionCommands: React.FC<SolutionCommandsProps> = ({
                         }}
                       >
                         <div className="flex items-center justify-between">
-                          <span className="truncate select-none cursor-default">Start Over</span>
+                          <span className="truncate select-none cursor-default">Restart</span>
                           <div className="flex gap-1 flex-shrink-0">
                             <span className="bg-white/10 rounded-md px-1.5 py-1 text-[11px] leading-none text-white/70 select-none cursor-default">
                               {COMMAND_KEY}

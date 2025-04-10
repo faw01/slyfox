@@ -27,7 +27,7 @@ interface TeleprompterModelSelectorProps {
 const providersWithLocalModels = ["openai", "anthropic", "google"];
 
 // Define recommended models
-const RECOMMENDED_MODELS = ["gpt-4o", "o3-mini-high", "gemini-2.5-pro-preview", "gemini-2.0-flash", "claude-3-7-sonnet-thinking-high"];
+const RECOMMENDED_MODELS = ["gemini-2.0-flash", "gpt-4o", "o3-mini-high", "gemini-2.5-pro-exp", "claude-3-7-sonnet-thinking-high"];
 
 // Debug log to check available models
 console.log("===== TELEPROMPTER MODEL SELECTOR DEBUGGING =====");
@@ -112,12 +112,16 @@ export const TeleprompterModelSelector: React.FC<TeleprompterModelSelectorProps>
     const isLocalModel = localModels.some(m => m.id === newModel || m.name === newModel);
   }
 
-  // Filter out vision models that are not recommended
-  const nonVisionModels = models.filter(model => 
-    !model.isVisionModel || 
+  // Filter out STT models but include all models from major providers
+  const filteredModels = models.filter(model => 
+    !model.isSTTModel && // Filter out STT models
+    (!model.isVisionModel || 
     RECOMMENDED_MODELS.includes(model.id) || 
-    model.id === "o1" ||
-    model.provider === "google" // Include all Google models regardless of vision flag
+    model.provider === "openai" || // Include all OpenAI models regardless of vision flag
+    model.provider === "google" || // Include all Google models regardless of vision flag
+    model.provider === "anthropic" || // Include all Anthropic models regardless of vision flag
+    model.provider === "meta" || // Include all Meta models regardless of vision flag
+    model.provider === "deepseek") // Include all DeepSeek models regardless of vision flag
   );
 
   const teleprompterModelOptions = useMemo(() => {
@@ -133,7 +137,7 @@ export const TeleprompterModelSelector: React.FC<TeleprompterModelSelectorProps>
     
     // First add recommended models group
     providerGroups["recommended"] = RECOMMENDED_MODELS
-      .map(id => nonVisionModels.find(m => m.id === id))
+      .map(id => filteredModels.find(m => m.id === id))
       .filter(Boolean)
       .map((model: any) => ({
         value: model.id,
@@ -142,14 +146,9 @@ export const TeleprompterModelSelector: React.FC<TeleprompterModelSelectorProps>
       }));
     
     // Then add remaining models by provider
-    nonVisionModels.forEach(model => {
+    filteredModels.forEach(model => {
       // Skip if it's already in recommended
       if (RECOMMENDED_MODELS.includes(model.id)) return;
-      
-      // Skip vision models that aren't explicitly included
-      if (model.isVisionModel && 
-          !RECOMMENDED_MODELS.includes(model.id) && 
-          model.provider !== "google") return;
       
       if (!providerGroups[model.provider]) {
         providerGroups[model.provider] = []
@@ -222,9 +221,9 @@ export const TeleprompterModelSelector: React.FC<TeleprompterModelSelectorProps>
 
     // Debug what's actually being used in render
     console.log("TeleprompterModelSelector rendering with:", {
-      recommendedModelsForDisplay: nonVisionModels.filter(model => RECOMMENDED_MODELS.includes(model.id)).map(m => m.id),
-      otherModelsForDisplay: nonVisionModels.filter(model => !RECOMMENDED_MODELS.includes(model.id)).map(m => m.id),
-      googleModelsInDisplay: nonVisionModels.filter(m => m.provider === "google").map(m => ({id: m.id, isVision: m.isVisionModel})),
+      recommendedModelsForDisplay: filteredModels.filter(model => RECOMMENDED_MODELS.includes(model.id)).map(m => m.id),
+      otherModelsForDisplay: filteredModels.filter(model => !RECOMMENDED_MODELS.includes(model.id)).map(m => m.id),
+      googleModelsInDisplay: filteredModels.filter(m => m.provider === "google").map(m => ({id: m.id, isVision: m.isVisionModel})),
       localModelsCount: localModels?.length,
       localModelsInDropdown: providerGroups["local"]?.length,
       ollamaAvailable: isOllamaAvailable,
@@ -241,7 +240,7 @@ export const TeleprompterModelSelector: React.FC<TeleprompterModelSelectorProps>
         options: options.sort((a, b) => a.label.localeCompare(b.label))
       }
     }).filter(group => group.options.length > 0)
-  }, [models, localModels, showLocalModels, currentTeleprompterModel, nonVisionModels, isOllamaAvailable])
+  }, [models, localModels, showLocalModels, currentTeleprompterModel, filteredModels, isOllamaAvailable])
 
   return (
     <div className="mb-3 px-2 space-y-1">

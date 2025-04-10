@@ -69,17 +69,39 @@ export class TeleprompterHelper {
     data?: string; 
     error?: string 
   }> {
+    // Log input transcript for debugging
+    console.log(`🔍 TeleprompterHelper.generateResponse received:`, {
+      transcript: transcript ? `"${transcript}"` : null,
+      type: typeof transcript,
+      length: transcript ? transcript.length : 0,
+      isEmpty: !transcript || transcript.trim() === '',
+      isNull: transcript === null,
+      isUndefined: transcript === undefined
+    })
+
     if (this.isGeneratingResponse) {
+      console.log('🔍 Already generating response, returning error')
       return { 
         success: false, 
         error: "Already generating a response, please wait" 
       }
     }
 
-    if (!transcript || transcript.trim().length < 10) {
+    // Return a more specific error for empty strings
+    if (transcript === '') {
+      console.log('🔍 Empty transcript received, returning error')
       return { 
         success: false, 
-        error: "Transcript is too short to generate a meaningful response" 
+        error: "Empty transcript provided. Please ensure your microphone or audio source is working properly." 
+      }
+    }
+
+    // Only return error if transcript is null or undefined
+    if (transcript === null || transcript === undefined) {
+      console.log('🔍 No transcript provided, returning error')
+      return { 
+        success: false, 
+        error: "No transcript provided" 
       }
     }
 
@@ -113,6 +135,7 @@ export class TeleprompterHelper {
       
       // Create prompt
       const messages = createTeleprompterMessages(transcript)
+      console.log(`🔍 Created teleprompter messages, about to call AI`)
       
       // Generate completion
       const response = await this.deps.aiManager.generateCompletion(
@@ -122,15 +145,18 @@ export class TeleprompterHelper {
       )
       
       if (!response || !response.content) {
+        console.log(`🔍 No response content received from AI`)
         throw new Error("Failed to generate response")
       }
       
+      console.log(`🔍 Generated teleprompter response successfully, returning data`)
       return {
         success: true,
         data: response.content
       }
     } catch (error: any) {
       console.error("Error generating teleprompter response:", error)
+      console.log(`🔍 Error in generateResponse:`, error.message || "Unknown error")
       return {
         success: false,
         error: error.message || "Failed to generate response"

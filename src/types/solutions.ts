@@ -35,4 +35,8 @@ export interface ProblemStatementData {
     pattern: string
     match_explanation?: string
   }
+  clarifying_qa?: Array<{
+    question: string
+    answer: string
+  }>
 }

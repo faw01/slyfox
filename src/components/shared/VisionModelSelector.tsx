@@ -15,8 +15,8 @@ interface VisionModelSelectorProps {
 }
 
 const RECOMMENDED_VISION_MODELS = [
-  "gpt-4o", 
-  "gpt-4o-mini"
+  "gpt-4o-mini",
+  "gpt-4o"
 ]
 
 // Debug log to check available vision models
@@ -102,8 +102,8 @@ export const VisionModelSelector: React.FC<VisionModelSelectorProps> = ({
     
     // Get only vision models from supported list
     const visionModels = models.filter((model) => 
-      model.isVisionModel || 
-      RECOMMENDED_VISION_MODELS.includes(model.id)
+      model.isVisionModel && // Only include vision models
+      !model.isSTTModel // Exclude STT models
     )
     
     // Group by provider
@@ -111,7 +111,7 @@ export const VisionModelSelector: React.FC<VisionModelSelectorProps> = ({
     
     // First add recommended models group
     providerGroups["recommended"] = RECOMMENDED_VISION_MODELS
-      .map(id => models.find(m => m.id === id))
+      .map(id => models.find(m => m.id === id && m.isVisionModel))
       .filter(Boolean)
       .map((model: any) => ({
         value: model.id,

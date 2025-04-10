@@ -5,7 +5,7 @@ import { Context } from '../providers/Provider'
 import AudioVisualizer from './AudioVisualizer'
 import { Card, CardContent } from '../ui/card'
 import { Mic, Speaker, Power, StopCircle } from 'lucide-react'
-import { showToast } from '../../lib/utils'
+import { useToast } from '../../contexts/toast'
 import { COMMAND_KEY } from '../../utils/platform'
 
 // Remove hardcoded API key - we'll get it from settings
@@ -20,6 +20,7 @@ const STTPanel: React.FC<STTPanelProps> = ({
   onClose,
   currentSTTModel
 }) => {
+  const { showToast } = useToast()
   const [isRecording, setIsRecording] = useState(false)
   const [micTranscript, setMicTranscript] = useState<string>('')
   const [systemTranscript, setSystemTranscript] = useState<string>('')
@@ -305,9 +306,27 @@ const STTPanel: React.FC<STTPanelProps> = ({
       closeDeepgramConnection('system');
       closeDeepgramConnection('mic');
       
-      // If in manual mode and stopping, immediately process the transcript
-      if (isManual && systemTranscript && systemTranscript.trim().length > 10) {
-        generateAIResponse();
+      // DEBUGGING: Log transcript state when stopping in manual mode
+      if (isManual) {
+        console.log('🔍 Stopping manual recording with transcript:', {
+          systemTranscript,
+          micTranscript,
+          completeTranscriptRef: completeTranscriptRef.current
+        });
+        
+        // Add a small delay to ensure all transcription data is processed
+        // before attempting to generate a response
+        setTimeout(() => {
+          // Make sure to update state with the latest from ref to be fully in sync
+          if (completeTranscriptRef.current.system && 
+              completeTranscriptRef.current.system !== systemTranscript) {
+            setSystemTranscript(completeTranscriptRef.current.system);
+            // Give one more tick for the state to update
+            setTimeout(() => generateAIResponse(true), 50);
+          } else {
+            generateAIResponse(true);
+          }
+        }, 100);
       }
       
       setIsManualRecording(false);
@@ -362,7 +381,7 @@ const STTPanel: React.FC<STTPanelProps> = ({
       transcriptTimeoutRef.current = null;
     }
     
-    if (!systemTranscript || systemTranscript === lastProcessedTranscript || systemTranscript.trim().length < 10) {
+    if (!systemTranscript || systemTranscript === lastProcessedTranscript) {
       return;
     }
     
@@ -836,35 +855,53 @@ const STTPanel: React.FC<STTPanelProps> = ({
   const extractLatestQuestion = (transcript: string): string => {
     if (!transcript || transcript.trim().length === 0) return '';
     
-    // Split by common question delimiters (period, question mark, exclamation)
+    // Don't limit to just the last question in manual mode
+    // Instead, return multiple questions when they form a coherent group
+    
+    // Split by common question delimiters
     const segments = transcript.split(/(?<=[.?!])\s+/);
     
-    // Get the last segment that might be a question
-    let lastSegment = segments[segments.length - 1].trim();
+    // Look for consecutive questions at the end of the transcript
+    const questionSegments = [];
     
-    // If the last segment is very short, also include the previous segment for context
-    if (lastSegment.length < 15 && segments.length > 1) {
-      lastSegment = segments[segments.length - 2].trim() + ' ' + lastSegment;
-    }
-    
-    // Check if looks like a question or a request
-    const isQuestion = lastSegment.endsWith('?') || 
-                       /^(can you|could you|please|tell me|what|why|how|when|where|who|describe)/i.test(lastSegment);
-    
-    // If it looks like a question, return it. Otherwise, return the last 1-2 sentences
-    if (isQuestion) {
-      return lastSegment;
-        } else {
-      // Get the last 1-2 sentences as context
-      const sentences = transcript.match(/[^.!?]+[.!?]+/g) || [];
-      if (sentences.length === 0) return transcript;
+    // Start from the end and go backward
+    for (let i = segments.length - 1; i >= 0; i--) {
+      const segment = segments[i].trim();
+      const isQuestion = segment.endsWith('?') || 
+                         /^(can you|could you|please|tell me|what|why|how|when|where|who|describe)/i.test(segment);
       
-      if (sentences.length === 1 || sentences[sentences.length - 1].length > 50) {
-        return sentences[sentences.length - 1].trim();
+      // Add questions or related context
+      if (isQuestion || 
+          (questionSegments.length > 0 && segment.length < 50) || // Short context related to question
+          (i === segments.length - 1)) { // Always include last segment
+        questionSegments.unshift(segment); // Add to front of array to maintain order
+        
+        // Don't go too far back - limit to last 3-4 segments or around 150 chars total
+        const combinedLength = questionSegments.join(' ').length;
+        if ((questionSegments.length >= 3 && combinedLength > 100) || 
+            questionSegments.length >= 4 || 
+            combinedLength > 150) {
+          break;
+        }
       } else {
-        return (sentences[sentences.length - 2] + ' ' + sentences[sentences.length - 1]).trim();
+        // Stop if we hit a non-question after already finding questions
+        if (questionSegments.length > 0) {
+          break;
+        }
       }
     }
+    
+    // If we found related questions, return them joined
+    if (questionSegments.length > 0) {
+      return questionSegments.join(' ');
+    }
+    
+    // Fallback: return the last portion of transcript
+    const sentences = transcript.match(/[^.!?]+[.!?]+/g) || [];
+    if (sentences.length <= 1) return transcript;
+    
+    // Return last 2-3 sentences to provide adequate context
+    return sentences.slice(-3).join(' ').trim();
   };
   
   // Function to add a new message to the chat
@@ -913,34 +950,91 @@ const STTPanel: React.FC<STTPanelProps> = ({
   };
   
   // Function to generate AI response based on interviewer's question
-  const generateAIResponse = async () => {
-    if (!systemTranscript || systemTranscript === lastProcessedTranscript || systemTranscript.trim().length < 10) {
+  const generateAIResponse = async (forceGenerate = false) => {
+    // Get the most up-to-date transcript from the ref instead of the state
+    // This avoids race conditions with state updates
+    const currentTranscript = completeTranscriptRef.current.system || systemTranscript;
+    
+    // DEBUGGING: Log state before processing
+    console.log('🔍 generateAIResponse called with:', {
+      forceGenerate,
+      currentTranscript: currentTranscript ? `"${currentTranscript}"` : null,
+      systemTranscriptState: systemTranscript ? `"${systemTranscript}"` : null,
+      completeTranscriptRef: completeTranscriptRef.current,
+      systemTranscriptLength: currentTranscript ? currentTranscript.length : 0,
+      lastProcessedTranscript: lastProcessedTranscript ? `"${lastProcessedTranscript}"` : null
+    });
+    
+    // Skip transcript validation if previously processed
+    if (!forceGenerate && (!currentTranscript || currentTranscript === lastProcessedTranscript)) {
+      console.log('🔍 generateAIResponse skipped - already processed or empty transcript');
       return;
     }
     
     try {
       setIsGeneratingResponse(true);
       
-      // Extract the latest question from the transcript
-      const latestQuestion = extractLatestQuestion(systemTranscript);
+      // Handle transcript differently based on mode
+      let transcriptToSend = '';
       
-      if (latestQuestion.trim().length < 10) {
-        console.log("Latest question segment is too short, waiting for more content");
-        setIsGeneratingResponse(false);
-        return;
+      // When manual mode is forced, just use the entire transcript without attempting to extract
+      if (forceGenerate) {
+        console.log('🔍 Manual mode - using full raw transcript');
+        transcriptToSend = currentTranscript;
+      } else {
+        // In auto mode, extract the question
+        transcriptToSend = extractLatestQuestion(currentTranscript);
+        console.log('🔍 Auto mode - extracted question portion:', {
+          original: currentTranscript.length,
+          extracted: transcriptToSend.length
+        });
+      }
+      
+      // DEBUGGING: Log extracted question
+      console.log('🔍 Transcript to send:', {
+        content: transcriptToSend ? `"${transcriptToSend}"` : null,
+        length: transcriptToSend ? transcriptToSend.length : 0,
+        forceGenerate
+      });
+      
+      // Make sure we have something to send
+      if (!transcriptToSend || transcriptToSend.trim() === '') {
+        console.log('🔍 Nothing to send, checking for backup transcript');
+        // Last resort: use whatever transcript is available
+        if (systemTranscript && systemTranscript.trim() !== '') {
+          transcriptToSend = systemTranscript;
+        } else {
+          console.log('🔍 No transcript available, showing error');
+          setAiResponse("I couldn't generate a response because no transcript was captured. Please try recording again.");
+          addChatMessage('assistant', "I couldn't generate a response because no transcript was captured. Please try recording again.");
+          setIsGeneratingResponse(false);
+          return;
+        }
       }
       
       // Call the Teleprompter API to generate a response with just the latest question
       console.log("Current teleprompter model:", window.__TELEPROMPTER_MODEL__);
       console.log("Current main model:", window.__MODEL__);
-      console.log("Calling teleprompter API with latest question:", latestQuestion.substring(0, 50) + "...");
-      const result = await window.electronAPI.generateTeleprompterResponse(latestQuestion);
+      console.log("Calling teleprompter API with:", transcriptToSend.substring(0, 50) + (transcriptToSend.length > 50 ? "..." : ""));
+      
+      // DEBUGGING: Log the exact data being sent to the backend
+      console.log('🔍 Sending to backend:', {
+        exactData: transcriptToSend,
+        type: typeof transcriptToSend,
+        isEmpty: !transcriptToSend || transcriptToSend.trim() === '',
+        length: transcriptToSend ? transcriptToSend.length : 0
+      });
+      
+      const result = await window.electronAPI.generateTeleprompterResponse(transcriptToSend);
+      
+      // DEBUGGING: Log the result
+      console.log('🔍 Response from backend:', result);
       
       if (result.success && result.data) {
         setAiResponse(result.data);
         // Add AI response to chat
         addChatMessage('assistant', result.data);
-        setLastProcessedTranscript(systemTranscript);
+        setLastProcessedTranscript(currentTranscript);
       } else if (result.error) {
         console.error('Error generating AI response:', result.error);
         // Show simple error in the response area instead of leaving it blank
@@ -1160,7 +1254,7 @@ const STTPanel: React.FC<STTPanelProps> = ({
           </div>
           
           {/* Chat Interface */}
-          <div className="space-y-2 h-[350px] overflow-y-auto flex flex-col p-1">
+          <div className="space-y-2 h-[419px] overflow-y-auto flex flex-col p-1">
             {chatMessages.length === 0 && !isRecording && (
               <div className="flex items-center justify-center h-full">
                 <span className="text-white/50 italic text-center">
@@ -1168,92 +1262,166 @@ const STTPanel: React.FC<STTPanelProps> = ({
                     ? "Start recording to capture the interviewer's questions and see AI responses here."
                     : "Enable System Audio and start recording to capture the interview."}
                 </span>
-                </div>
+              </div>
             )}
             {chatMessages.map((message, index) => (
-              <div key={index} className={`flex flex-col w-full ${message.role === 'assistant' ? 'items-end' : 'items-start'}`}>
-                <div className={`max-w-[90%] rounded-lg p-3 ${
-                  message.role === 'interviewer' 
-                    ? 'bg-[#333b23]/50 border border-[#4d5939]/20' 
-                    : 'bg-indigo-950/30 border border-indigo-700/40'
-                }`}>
-                  <div className="flex justify-between items-center mb-1">
-                    <span className="text-xs font-medium text-white/90">
-                      {message.role === 'interviewer' ? 'Interviewer' : 'AI Suggested Response'}
-                    </span>
+              <div key={index} className={`flex mb-4 ${message.role === 'assistant' ? 'justify-end' : 'justify-start'}`}>
+                <div 
+                  className={`max-w-[85%] p-3 rounded-lg ${
+                    message.role === 'interviewer' 
+                      ? 'bg-neutral-800 text-white/90 rounded-bl-none border border-neutral-700' 
+                      : 'bg-neutral-700 text-white/90 rounded-br-none border border-neutral-600'
+                  }`}
+                >
+                  <div className="text-xs leading-relaxed whitespace-pre-wrap">{message.content}</div>
+                  <div className="flex justify-between items-center mt-1">
+                    <div>
+                      {message.role === 'interviewer' && (
+                        <div className="flex gap-1">
+                          <button 
+                            className="bg-white hover:bg-white/90 text-black text-[10px] px-2 py-0.5 rounded flex items-center gap-1 transition-colors cursor-default"
+                            title="Send to solution generator"
+                            onClick={async () => {
+                              try {
+                                // Create a problem info object from the message content
+                                const problemInfo = {
+                                  title: `Problem from Teleprompter`,
+                                  description: message.content,
+                                  examples: [],
+                                  constraints: [],
+                                  _fromTeleprompter: true // Flag to indicate this came from teleprompter
+                                };
+                                
+                                // Send the problem info to the main process
+                                if (window.electronAPI && window.electronAPI.setProblemInfo) {
+                                  await window.electronAPI.setProblemInfo(problemInfo);
+                                  
+                                  // Trigger solution generation
+                                  const result = await window.electronAPI.triggerProcessScreenshots();
+                                  
+                                  if (!result.success) {
+                                    console.error("Failed to process problem:", result.error);
+                                    showToast("Error", "Failed to process problem", "error");
+                                  }
+                                }
+                              } catch (error) {
+                                console.error("Error sending problem to solution generator:", error);
+                                showToast("Error", "Failed to send problem to solution generator", "error");
+                              }
+                            }}
+                          >
+                            <span>Generate Solution</span>
+                            <svg xmlns="http://www.w3.org/2000/svg" width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                              <path d="M5 12h14"></path>
+                              <path d="m12 5 7 7-7 7"></path>
+                            </svg>
+                          </button>
+                          
+                          <button 
+                            className="bg-white hover:bg-white/90 text-black text-[10px] px-2 py-0.5 rounded flex items-center gap-1 transition-colors cursor-default"
+                            title="Add to chat"
+                            onClick={() => {
+                              try {
+                                // Create a single chat message to add to chat history
+                                const chatMessage = {
+                                  role: 'user',
+                                  content: message.content,
+                                  timestamp: message.timestamp
+                                };
+                                
+                                // Store the message in localStorage for the chat panel to pick up
+                                let chatData = [];
+                                try {
+                                  // Try to get existing chat data
+                                  const existingData = localStorage.getItem('chat_history');
+                                  if (existingData) {
+                                    chatData = JSON.parse(existingData);
+                                  }
+                                } catch (err) {
+                                  console.error('Error parsing existing chat data:', err);
+                                  chatData = [];
+                                }
+                                
+                                // Add the message with a unique ID
+                                const now = new Date();
+                                const newMessage = {
+                                  id: Date.now().toString(),
+                                  role: 'user',
+                                  content: message.content,
+                                  timestamp: `${now.getHours().toString().padStart(2, '0')}:${now.getMinutes().toString().padStart(2, '0')}:${now.getSeconds().toString().padStart(2, '0')}`
+                                };
+                                
+                                // Add to chat history
+                                chatData.push(newMessage);
+                                
+                                // Save back to localStorage
+                                localStorage.setItem('chat_history', JSON.stringify(chatData));
+                                
+                                // Show confirmation toast
+                                showToast("Success", "Message added to chat", "success");
+                              } catch (error) {
+                                console.error('Error adding message to chat:', error);
+                                showToast("Error", "Failed to add message to chat", "error");
+                              }
+                            }}
+                          >
+                            <span>Add to Chat</span>
+                          </button>
+                        </div>
+                      )}
+                    </div>
+                    <div className={`text-[10px] ${
+                      message.role === 'interviewer' ? 'text-neutral-400' : 'text-neutral-300'
+                    }`}>{message.timestamp}</div>
+                  </div>
                 </div>
-                  <div className="text-sm text-white/90">
-                    {message.content}
-              </div>
-                  <div className="flex justify-end mt-1">
-                    <span className="text-[10px] text-white/50">
-                      {message.timestamp}
-                    </span>
-          </div>
-          </div>
               </div>
             ))}
             
             {isGeneratingResponse && (
-              <div className="flex flex-col w-full items-end">
-                <div className="max-w-[90%] rounded-lg p-3 bg-indigo-950/30 border border-indigo-700/40">
-                  <div className="flex justify-between items-center mb-1">
-                    <span className="text-xs font-medium text-white/90">
-                      AI Suggested Response
-                      </span>
-                  </div>
-                  <div className="flex items-center space-x-1">
-                    <div className="w-1.5 h-1.5 bg-indigo-500/70 rounded-full animate-bounce" style={{ animationDelay: '0ms' }}></div>
-                    <div className="w-1.5 h-1.5 bg-indigo-500/70 rounded-full animate-bounce" style={{ animationDelay: '150ms' }}></div>
-                    <div className="w-1.5 h-1.5 bg-indigo-500/70 rounded-full animate-bounce" style={{ animationDelay: '300ms' }}></div>
-                    <span className="ml-2 text-sm text-indigo-300/90 select-none cursor-default">Generating response...</span>
-                    </div>
+              <div className="flex justify-end mb-4">
+                <div className="max-w-[85%] p-3 rounded-lg bg-neutral-700 text-white/90 rounded-br-none border border-neutral-600">
+                  <p className="text-xs bg-gradient-to-r from-gray-300 via-gray-100 to-gray-300 bg-clip-text text-transparent animate-pulse">
+                    Generating response...
+                  </p>
                 </div>
-                </div>
-              )}
-            </div>
+              </div>
+            )}
+          </div>
           
           {/* Controls */}
           <div className="flex justify-center">
-                <button
+            <button
               onClick={() => toggleRecording(recordingMode === 'manual')}
-              className={`flex items-center gap-2 px-3 py-1.5 rounded-full transition-colors cursor-default select-none ${
-                isRecording
-                  ? 'bg-red-500/50 hover:bg-red-500/70'
-                  : 'bg-green-500/50 hover:bg-green-500/70'
-              }`}
               disabled={(!micEnabled && !systemAudioEnabled) || 
                         (micEnabled && microphonePermissionGranted === false) ||
                         (systemAudioEnabled && outputDevices.length === 0)}
-              >
-                {isRecording ? (
-                  <>
-                  <span className="block w-3 h-3 bg-red-500 rounded-sm"></span>
-                  <span className="select-none cursor-default">
-                    {recordingMode === 'manual' ? `Stop Recording (${COMMAND_KEY}+X)` : 'Stop Recording'}
-                  </span>
-                  </>
-                ) : (
-                  <>
-                    <svg
-                      xmlns="http://www.w3.org/2000/svg"
-                    className="w-3 h-3 text-white"
-                      viewBox="0 0 24 24"
-                      fill="none"
-                      stroke="currentColor"
-                      strokeWidth="2"
-                      strokeLinecap="round"
-                      strokeLinejoin="round"
-                    >
-                    <circle cx="12" cy="12" r="10" />
-                    <path d="M12 8v8M8 12h8" />
-                    </svg>
-                  <span className="select-none cursor-default">
-                    {recordingMode === 'manual' ? `Start Recording (${COMMAND_KEY}+X)` : 'Start Recording'}
-                  </span>
-                  </>
-                )}
-              </button>
+              className={`h-[60px] w-[60px] flex items-center justify-center rounded-lg transition-colors cursor-default ${
+                (!micEnabled && !systemAudioEnabled) || 
+                (micEnabled && microphonePermissionGranted === false) ||
+                (systemAudioEnabled && outputDevices.length === 0)
+                  ? 'bg-neutral-700 hover:bg-neutral-700'
+                  : isRecording 
+                    ? 'bg-red-500 hover:bg-red-500/90' 
+                    : 'bg-white hover:bg-white/90'
+              }`}
+            >
+              {isRecording ? (
+                <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="text-white">
+                  <rect x="6" y="6" width="12" height="12" rx="1"></rect>
+                </svg>
+              ) : (
+                <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" 
+                  stroke={(!micEnabled && !systemAudioEnabled) || 
+                        (micEnabled && microphonePermissionGranted === false) ||
+                        (systemAudioEnabled && outputDevices.length === 0) ? "#9ca3af" : "black"} 
+                  strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                  <path d="M12 2a3 3 0 0 0-3 3v7a3 3 0 0 0 6 0V5a3 3 0 0 0-3-3Z"></path>
+                  <path d="M19 10v2a7 7 0 0 1-14 0v-2"></path>
+                  <line x1="12" y1="19" x2="12" y2="22"></line>
+                </svg>
+              )}
+            </button>
           </div>
         </div>
       </div>

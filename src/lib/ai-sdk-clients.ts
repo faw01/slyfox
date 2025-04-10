@@ -32,12 +32,18 @@ export function createAISDKClients(apiKeys: APIKeys) {
     : null;
     
   const googleInstance = apiKeys.google 
-    ? createGoogleGenerativeAI({ apiKey: apiKeys.google as string }) 
+    ? createGoogleGenerativeAI({ 
+        apiKey: apiKeys.google as string
+      }) 
     : null;
     
   return {
     openai: openaiInstance ? (modelId: string) => openaiInstance(modelId) : null,
     anthropic: anthropicInstance ? (modelId: string) => anthropicInstance(modelId) : null,
-    google: googleInstance ? (modelId: string, options?: any) => googleInstance(modelId, options) : null
+    google: googleInstance ? (modelId: string, options?: any) => {
+      // Always set structuredOutputs to false for Google models to avoid JSON formatting issues
+      const mergedOptions = { structuredOutputs: false, ...options };
+      return googleInstance(modelId, mergedOptions);
+    } : null
   };
 } 

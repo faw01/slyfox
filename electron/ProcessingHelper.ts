@@ -140,6 +140,69 @@ export class ProcessingHelper {
 
     const view = this.deps.getView()
     console.log("Processing screenshots in view:", view)
+    
+    // Check if we have a problem already extracted (from teleprompter)
+    const existingProblem = this.deps.getProblemInfo()
+    if (existingProblem && existingProblem._fromTeleprompter) {
+      // Skip problem extraction and go straight to solution generation
+      console.log("Using problem from teleprompter, skipping extraction")
+      mainWindow.webContents.send(this.deps.PROCESSING_EVENTS.INITIAL_START)
+      
+      try {
+        // Initialize AbortController
+        this.currentProcessingAbortController = new AbortController()
+        const { signal } = this.currentProcessingAbortController
+        
+        // Notify about problem extraction (skip actual extraction)
+        mainWindow.webContents.send(
+          this.deps.PROCESSING_EVENTS.PROBLEM_EXTRACTED,
+          existingProblem
+        )
+        
+        // Generate solutions
+        setIsGeneratingSolution(true)
+        const solutionsResult = await this.generateSolutionsHelper(signal)
+        setIsGeneratingSolution(false)
+        
+        if (solutionsResult.success) {
+          // Clear any existing extra screenshots
+          this.screenshotHelper.clearExtraScreenshotQueue()
+          mainWindow.webContents.send(
+            this.deps.PROCESSING_EVENTS.SOLUTION_SUCCESS,
+            solutionsResult.data
+          )
+          this.deps.setView("solutions")
+          return
+        } else {
+          throw new Error(
+            solutionsResult.error || "Failed to generate solutions"
+          )
+        }
+      } catch (error: any) {
+        setIsGeneratingSolution(false)
+        console.error("Processing error from teleprompter:", error)
+        
+        if (axios.isCancel(error)) {
+          mainWindow.webContents.send(
+            this.deps.PROCESSING_EVENTS.INITIAL_SOLUTION_ERROR,
+            "Processing was canceled by the user."
+          )
+        } else {
+          mainWindow.webContents.send(
+            this.deps.PROCESSING_EVENTS.INITIAL_SOLUTION_ERROR,
+            error.message || "Server error. Please try again."
+          )
+        }
+        
+        // Reset view back to queue on error
+        console.log("Resetting view to queue due to error")
+        this.deps.setView("queue")
+      } finally {
+        this.currentProcessingAbortController = null
+      }
+      
+      return
+    }
 
     if (view === "queue") {
       mainWindow.webContents.send(this.deps.PROCESSING_EVENTS.INITIAL_START)
@@ -278,7 +341,23 @@ export class ProcessingHelper {
   private sanitizeAndParseJSON(content: string) {
     try {
       console.log("Raw content (full response):", content)
-      const parsed = JSON.parse(content)
+      
+      // Strip markdown code blocks if present (handle backtick formatting from Gemini models)
+      let cleanedContent = content;
+      
+      // Check if the content starts with markdown code fence
+      if (content.trim().startsWith("```")) {
+        // Extract content between code fences
+        const codeBlockRegex = /```(?:json)?\s*([\s\S]*?)```/;
+        const match = content.match(codeBlockRegex);
+        
+        if (match && match[1]) {
+          cleanedContent = match[1].trim();
+          console.log("Cleaned markdown content:", cleanedContent);
+        }
+      }
+      
+      const parsed = JSON.parse(cleanedContent)
       console.log("Parsed content:", JSON.stringify(parsed, null, 2))
       return parsed
     } catch (error) {

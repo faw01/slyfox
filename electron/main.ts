@@ -123,6 +123,7 @@ export interface IIpcHandlerDeps {
   moveWindowUp: () => void
   moveWindowDown: () => void
   updateHotkeys: () => void
+  setProblemInfo: (problemInfo: any) => void
 }
 
 // Initialize helpers
@@ -603,7 +604,8 @@ async function initializeApp() {
       moveWindowDown: () => moveWindowVertical((y) => y + state.step),
       updateHotkeys: () => {
         updateHotkeys();
-      }
+      },
+      setProblemInfo
     });
     console.log("IPC handlers initialized");
     
@@ -771,7 +773,9 @@ function updateClickThroughState(): void {
   
   // Enable click-through if: in solutions view OR extracting problem OR generating solution
   if (state.view === "solutions" || state.isExtractingProblem || state.isGeneratingSolution) {
-    state.mainWindow.setIgnoreMouseEvents(true, { forward: true })
+    // Temporarily disable click-through behavior to allow interaction with the window
+    // state.mainWindow.setIgnoreMouseEvents(true, { forward: true })
+    state.mainWindow.setIgnoreMouseEvents(false)
   } else {
     state.mainWindow.setIgnoreMouseEvents(false)
   }
