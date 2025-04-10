@@ -27,7 +27,7 @@ interface ModelSelectorProps {
 const providersWithLocalModels = ["openai", "anthropic", "google"];
 
 // Define recommended models
-const RECOMMENDED_MODELS = ["o3-mini-high", "gpt-4o", "gemini-2.5-pro-exp", "gemini-2.0-flash", "claude-3-7-sonnet-thinking-high"];
+const RECOMMENDED_MODELS = ["gpt-4o", "o3-mini-high", "gemini-2.5-pro-exp", "gemini-2.0-flash", "claude-3-7-sonnet-thinking-high"];
 
 // Debug log to check available models
 console.log("===== MODEL SELECTOR DEBUGGING =====");

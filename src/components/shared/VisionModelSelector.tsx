@@ -15,8 +15,8 @@ interface VisionModelSelectorProps {
 }
 
 const RECOMMENDED_VISION_MODELS = [
-  "gpt-4o-mini",
-  "gpt-4o"
+  "gpt-4o", 
+  "gpt-4o-mini"
 ]
 
 // Debug log to check available vision models

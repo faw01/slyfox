@@ -58,7 +58,7 @@ function App() {
   })
   const [currentModel, setCurrentModel] = useState<string>(() => {
     if (!window.__MODEL__) {
-      window.__MODEL__ = "gpt-4o"
+      window.__MODEL__ = "o3-mini-high"
     }
     return window.__MODEL__
   })
@@ -79,14 +79,16 @@ function App() {
   // Initialize window globals if they don't exist
   useEffect(() => {
     // Force set the models and trigger the model update
-    window.__MODEL__ = "gpt-4o"
+    window.__MODEL__ = "o3-mini-high"
     window.__VISION_MODEL__ = "gpt-4o-mini"
-    window.__TELEPROMPTER_MODEL__ = "gpt-4o"
+    window.__TELEPROMPTER_MODEL__ = "gemini-2.0-flash"
+    window.__CHAT_MODEL__ = "gemini-2.0-flash"
+    window.__STT_MODEL__ = "deepgram-nova-3"
     window.__LANGUAGE__ = window.__LANGUAGE__ || "python"
     
     // Update the state and trigger model selection
-    setCurrentModel("gpt-4o")
-    window.electronAPI.setModel("gpt-4o").catch(console.error)
+    setCurrentModel("o3-mini-high")
+    window.electronAPI.setModel("o3-mini-high").catch(console.error)
   }, [])
 
   // Initialize STT model
